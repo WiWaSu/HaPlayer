@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 480" width="1600" height="480">
-  <!-- Баннер для README. В репозиторий кладётся отрендеренный banner.png, чтобы шрифт не зависел от системы зрителя -->
-  <rect width="1600" height="480" rx="40" fill="#0A0A0A"/>
-  <image href="logo.svg" x="90" y="40" width="400" height="400"/>
-  <text x="540" y="262" font-family="Segoe UI Variable Display, Segoe UI, Inter, Arial, sans-serif" font-weight="800" font-size="150" letter-spacing="-4"><tspan fill="#FF2BD6">Ha</tspan><tspan fill="#F7F7F9">Player</tspan></text>
-  <text x="546" y="340" font-family="Segoe UI, Inter, Arial, sans-serif" font-weight="400" font-size="40" fill="#E6FF00">Your music. Your files. Offline.</text>
-</svg>
