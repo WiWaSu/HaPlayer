@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.EqualizerView"
+             x:DataType="vm:MainViewModel">
+  <!-- Плавающая карточка эквалайзера над нижней панелью -->
+  <Border Background="#242424" CornerRadius="12" Padding="20,16" BoxShadow="0 16 48 0 #B3000000"
+          BorderBrush="#14FFFFFF" BorderThickness="1">
+    <StackPanel Spacing="14">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+        <TextBlock Text="Эквалайзер" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+        <ToggleSwitch Grid.Column="2" IsChecked="{Binding Equalizer.Enabled}" VerticalAlignment="Center"
+                      Margin="0,0,12,0" ToolTip.Tip="Включить или выключить эквалайзер" />
+        <ComboBox Grid.Column="3" ItemsSource="{Binding Equalizer.Presets}"
+                  SelectedItem="{Binding Equalizer.SelectedPreset}"
+                  MinWidth="170" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <Button Grid.Column="4" Classes="icon hoverbg" VerticalAlignment="Center" ToolTip.Tip="Закрыть (E)"
+                Command="{Binding ToggleEqualizerCommand}">
+          <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="18" Height="18" />
+        </Button>
+      </Grid>
+
+      <Grid ColumnDefinitions="Auto,Auto,*" Opacity="{Binding Equalizer.BandsOpacity}">
+        <!-- Предусиление -->
+        <StackPanel Spacing="6" Width="48">
+          <TextBlock Text="{Binding Equalizer.PreampText}" FontSize="11" Foreground="{StaticResource SubBrush}"
+                     HorizontalAlignment="Center" />
+          <Slider Orientation="Vertical" Height="150" Minimum="-12" Maximum="12" Value="{Binding Equalizer.Preamp}"
+                  HorizontalAlignment="Center" TickFrequency="0.5" IsSnapToTickEnabled="True" />
+          <TextBlock Text="Пред." FontSize="11" Foreground="{StaticResource SubBrush}" HorizontalAlignment="Center" />
+        </StackPanel>
+        <Rectangle Grid.Column="1" Width="1" Fill="#26FFFFFF" Margin="10,0" />
+
+        <ItemsControl Grid.Column="2" ItemsSource="{Binding Equalizer.Bands}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:EqBand">
+              <StackPanel Spacing="6" Width="44">
+                <TextBlock Text="{Binding GainText}" FontSize="11" Foreground="{StaticResource SubBrush}"
+                           HorizontalAlignment="Center" />
+                <Slider Orientation="Vertical" Height="150" Minimum="-12" Maximum="12" Value="{Binding Gain}"
+                        HorizontalAlignment="Center" TickFrequency="0.5" IsSnapToTickEnabled="True" />
+                <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{StaticResource SubBrush}"
+                           HorizontalAlignment="Center" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="Хрипит — уменьшите «Пред.»"
+                   Classes="sub" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
+        <Button Grid.Column="1" Classes="pill ghost" Content="Сбросить" Command="{Binding Equalizer.ResetCommand}" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

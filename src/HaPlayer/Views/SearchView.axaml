@@ -1,0 +1,125 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.SearchView"
+             x:DataType="vm:SearchPageViewModel">
+  <DockPanel>
+    <!-- Поле ввода живёт в верхней панели окна, здесь только результаты -->
+    <ScrollViewer>
+      <StackPanel Margin="24,24,24,24" Spacing="28">
+
+        <!-- До ввода: подсказка и недавние альбомы -->
+        <StackPanel IsVisible="{Binding !HasQuery}" Spacing="12">
+          <TextBlock Text="Начните вводить название трека, альбома или исполнителя" Classes="sub" FontSize="14" />
+          <TextBlock Text="Недавно добавленные" Classes="h2" Margin="0,12,0,0" />
+          <ItemsControl ItemsSource="{Binding Browse}" Margin="-12,0,0,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AlbumItem">
+                <Button Classes="card" Command="{Binding OpenCommand}">
+                  <StackPanel Spacing="4">
+                    <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}" Margin="0,0,0,8"
+                                  BoxShadow="0 8 24 0 #80000000" />
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                    <TextBlock Text="{Binding CardSubtitle}" Classes="sub" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Ничего не нашлось -->
+        <StackPanel IsVisible="{Binding NothingFound}" Spacing="8" Margin="0,40,0,0" HorizontalAlignment="Center">
+          <TextBlock Text="{Binding Query, StringFormat='По запросу «{0}» ничего нет'}" FontSize="24"
+                     FontWeight="Bold" HorizontalAlignment="Center" />
+          <TextBlock Text="Проверьте написание или попробуйте другие слова." Classes="sub" FontSize="14"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Исполнители -->
+        <StackPanel IsVisible="{Binding HasArtists}" Spacing="12">
+          <TextBlock Text="Исполнители" Classes="h2" />
+          <ItemsControl ItemsSource="{Binding Artists}" Margin="-12,0,0,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ArtistItem">
+                <Button Classes="card" Command="{Binding OpenCommand}">
+                  <StackPanel Spacing="4">
+                    <ui:CoverView Width="164" Height="164" CornerRadius="82" Source="{Binding Art}" Margin="0,0,0,8"
+                                  BoxShadow="0 8 24 0 #80000000" />
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                    <TextBlock Text="Исполнитель" Classes="sub" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Треки -->
+        <StackPanel IsVisible="{Binding HasRows}" Spacing="8">
+          <TextBlock Text="{Binding TracksTitle}" Classes="h2" Margin="0,0,0,4" />
+          <ListBox x:Name="Rows" Classes="plain tracks" SelectionMode="Multiple" ItemsSource="{Binding Rows}"
+                   ItemTemplate="{StaticResource TrackRowTemplate}" />
+        </StackPanel>
+
+        <!-- Альбомы -->
+        <StackPanel IsVisible="{Binding HasAlbums}" Spacing="12">
+          <TextBlock Text="Альбомы" Classes="h2" />
+          <ItemsControl ItemsSource="{Binding Albums}" Margin="-12,0,0,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AlbumItem">
+                <Button Classes="card" Command="{Binding OpenCommand}">
+                  <StackPanel Spacing="4">
+                    <Panel Margin="0,0,0,8">
+                      <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}"
+                                    BoxShadow="0 8 24 0 #80000000" />
+                      <Button Classes="primary small float" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                              Width="48" Height="48" CornerRadius="24" Margin="0,0,8,8"
+                              Command="{Binding PlayCommand}">
+                        <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="24" Height="24" />
+                      </Button>
+                    </Panel>
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                    <TextBlock Text="{Binding CardSubtitle}" Classes="sub" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Плейлисты -->
+        <StackPanel IsVisible="{Binding HasPlaylists}" Spacing="12">
+          <TextBlock Text="Плейлисты" Classes="h2" />
+          <ItemsControl ItemsSource="{Binding Playlists}" Margin="-12,0,0,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CollectionItem">
+                <Button Classes="card" Command="{Binding OpenCommand}">
+                  <StackPanel Spacing="4">
+                    <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}" Margin="0,0,0,8"
+                                  IsLiked="{Binding IsLikedCollection}" BoxShadow="0 8 24 0 #80000000" />
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                    <TextBlock Text="{Binding Subtitle}" Classes="sub" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

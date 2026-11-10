@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.NowPlayingView"
+             x:DataType="vm:MainViewModel">
+  <!-- «Сейчас играет» на весь экран, как в мобильном приложении: большая обложка, управление и очередь -->
+  <Border Background="{Binding NowPlayingBrush}">
+    <Grid RowDefinitions="Auto,*" Margin="24,8,24,24">
+
+      <!-- Верх: закрыть и откуда играет -->
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Button Classes="icon large hoverbg" Command="{Binding CloseNowPlayingCommand}" ToolTip.Tip="Свернуть (Esc)">
+          <ui:Glyph Data="{x:Static ui:Icons.ChevronDown}" Width="30" Height="30" />
+        </Button>
+        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
+          <TextBlock Text="ИГРАЕТ ИЗ" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.5"
+                     Foreground="#B3FFFFFF" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding Player.QueueTitle}" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
+        </StackPanel>
+        <Panel Grid.Column="2" Width="48" />
+      </Grid>
+
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,16,0,0">
+
+        <!-- Обложка и управление -->
+        <Grid RowDefinitions="*,Auto" MaxWidth="560" Margin="24,0">
+          <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Margin="0,0,0,28">
+            <ui:CoverView Width="520" Height="520" CornerRadius="10" Source="{Binding Player.CurrentTrack.Album.Art}"
+                          BoxShadow="0 24 64 0 #99000000" />
+          </Viewbox>
+
+          <StackPanel Grid.Row="1" Spacing="14" MaxWidth="520">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="4">
+                <Button Classes="flat" Command="{Binding OpenCurrentAlbumCommand}" HorizontalAlignment="Left"
+                        ToolTip.Tip="Открыть альбом">
+                  <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Title}" FontSize="28"
+                             FontWeight="ExtraBold" LetterSpacing="-0.5" />
+                </Button>
+                <Button Classes="flat" Command="{Binding OpenCurrentArtistCommand}" HorizontalAlignment="Left"
+                        ToolTip.Tip="Открыть исполнителя">
+                  <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Artist}" FontSize="17"
+                             Foreground="#C8FFFFFF" />
+                </Button>
+              </StackPanel>
+              <Button Grid.Column="1" Classes="icon large like" Classes.on="{Binding Player.CurrentTrack.IsLiked}"
+                      Command="{Binding Player.ToggleLikeCommand}" VerticalAlignment="Center" ToolTip.Tip="Любимые треки (L)">
+                <Panel>
+                  <ui:Glyph Data="{x:Static ui:Icons.Heart}" Width="28" Height="28" IsVisible="{Binding Player.CurrentTrack.IsLiked}" />
+                  <ui:Glyph Data="{x:Static ui:Icons.HeartOutline}" Width="28" Height="28" IsVisible="{Binding !Player.CurrentTrack.IsLiked}" />
+                </Panel>
+              </Button>
+            </Grid>
+
+            <StackPanel Spacing="2">
+              <Slider Minimum="0" Maximum="{Binding Player.SliderMaximum}" Value="{Binding Player.Position, Mode=TwoWay}" />
+              <Grid ColumnDefinitions="*,*">
+                <TextBlock Text="{Binding Player.PositionText}" FontSize="12" Foreground="#B3FFFFFF" />
+                <TextBlock Grid.Column="1" Text="{Binding Player.DurationText}" FontSize="12" Foreground="#B3FFFFFF"
+                           HorizontalAlignment="Right" />
+              </Grid>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,*">
+              <Button Grid.Column="1" Classes="icon large" Classes.on="{Binding Player.Shuffle}"
+                      Command="{Binding Player.ToggleShuffleCommand}" ToolTip.Tip="Случайный порядок (S)">
+                <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="24" Height="24" />
+              </Button>
+              <Button Grid.Column="2" Classes="icon large" Margin="16,0" Command="{Binding Player.PreviousCommand}">
+                <ui:Glyph Data="{x:Static ui:Icons.Prev}" Width="34" Height="34" />
+              </Button>
+              <Button Grid.Column="3" Classes="play big" Command="{Binding Player.PlayPauseCommand}">
+                <ui:Glyph Data="{Binding Player.PlayIcon}" Width="32" Height="32" Foreground="Black" />
+              </Button>
+              <Button Grid.Column="4" Classes="icon large" Margin="16,0" Command="{Binding Player.NextCommand}">
+                <ui:Glyph Data="{x:Static ui:Icons.Next}" Width="34" Height="34" />
+              </Button>
+              <Button Grid.Column="5" Classes="icon large" Classes.on="{Binding Player.IsRepeatOn}"
+                      Command="{Binding Player.CycleRepeatCommand}" ToolTip.Tip="{Binding Player.RepeatTip}">
+                <ui:Glyph Data="{Binding Player.RepeatIcon}" Width="24" Height="24" />
+              </Button>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+              <Button Classes="icon" Command="{Binding Player.ToggleMuteCommand}">
+                <ui:Glyph Data="{Binding Player.VolumeIcon}" Width="20" Height="20" />
+              </Button>
+              <Slider Width="160" Minimum="0" Maximum="100" Value="{Binding Player.Volume, Mode=TwoWay}" />
+              <Button Classes="icon" Classes.on="{Binding Equalizer.Enabled}" Command="{Binding ToggleEqualizerCommand}"
+                      Margin="12,0,0,0" ToolTip.Tip="Эквалайзер (E)">
+                <ui:Glyph Data="{x:Static ui:Icons.Equalizer}" Width="20" Height="20" />
+              </Button>
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+
+        <!-- Далее в очереди -->
+        <Border Grid.Column="1" Width="340" Background="#33000000" CornerRadius="12" Padding="8,16" Margin="16,0,0,0">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="Далее в очереди" FontSize="16" FontWeight="Bold" Margin="12,0,12,12" />
+            <TextBlock DockPanel.Dock="Top" Text="Это последний трек в очереди." Classes="sub" Margin="12,0"
+                       IsVisible="{Binding IsQueueEnd}" />
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding UpNext}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:UpNextItem">
+                    <Button Classes="card" Width="NaN" HorizontalAlignment="Stretch" Padding="8" Margin="0"
+                            Command="{Binding PlayCommand}">
+                      <Grid ColumnDefinitions="44,*">
+                        <ui:CoverView Width="44" Height="44" Source="{Binding Track.Album.Thumb}" />
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+                          <TextBlock Text="{Binding Track.Title}" FontSize="14" />
+                          <TextBlock Text="{Binding Track.Artist}" Classes="sub" />
+                        </StackPanel>
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </Grid>
+  </Border>
+</UserControl>

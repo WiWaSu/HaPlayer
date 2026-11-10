@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.QueuePanelView"
+             x:DataType="vm:MainViewModel">
+  <!-- Правая панель «Сейчас играет», как у Spotify -->
+  <Border Classes="panel">
+    <ScrollViewer>
+      <StackPanel Margin="16" Spacing="16">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding Player.QueueTitle}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Classes="icon hoverbg" Command="{Binding ToggleQueuePanelCommand}" ToolTip.Tip="Закрыть">
+            <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="16" Height="16" />
+          </Button>
+        </Grid>
+
+        <Viewbox Stretch="Uniform" StretchDirection="Both">
+          <ui:CoverView Width="320" Height="320" CornerRadius="8" Source="{Binding Player.CurrentTrack.Album.Art}" />
+        </Viewbox>
+
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2">
+            <Button Classes="flat" Command="{Binding OpenCurrentAlbumCommand}" HorizontalAlignment="Left">
+              <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Title}" FontSize="24" FontWeight="Bold"
+                         LetterSpacing="-0.4" />
+            </Button>
+            <Button Classes="flat" Command="{Binding OpenCurrentArtistCommand}" HorizontalAlignment="Left">
+              <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Artist}" FontSize="15"
+                         Foreground="{StaticResource SubBrush}" />
+            </Button>
+          </StackPanel>
+          <Button Grid.Column="1" Classes="icon" Command="{Binding Player.ToggleLikeCommand}" VerticalAlignment="Center"
+                  ToolTip.Tip="Любимые треки (L)">
+            <Panel Width="22" Height="22">
+              <ui:Glyph Data="{x:Static ui:Icons.CirclePlus}" IsVisible="{Binding !Player.CurrentTrack.IsLiked}" />
+              <Panel IsVisible="{Binding Player.CurrentTrack.IsLiked}">
+                <ui:Glyph Data="{x:Static ui:Icons.CircleFill}" Foreground="{DynamicResource AccentBrush}" />
+                <ui:Glyph Data="{x:Static ui:Icons.Check}" Foreground="Black" StrokeThickness="3" />
+              </Panel>
+            </Panel>
+          </Button>
+        </Grid>
+
+        <!-- Далее в очереди -->
+        <Border Background="#1F1F1F" CornerRadius="8" Padding="12,14">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Далее в очереди" FontSize="16" FontWeight="Bold" />
+              <Button Grid.Column="1" Classes="flat" Command="{Binding ToggleNowPlayingCommand}">
+                <TextBlock Classes="link" Text="Открыть" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource SubBrush}" />
+              </Button>
+            </Grid>
+            <TextBlock Text="Это последний трек в очереди." Classes="sub" IsVisible="{Binding IsQueueEnd}" />
+            <ItemsControl ItemsSource="{Binding UpNextShort}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:UpNextItem">
+                  <Button Classes="row" Command="{Binding PlayCommand}">
+                    <Grid ColumnDefinitions="44,*">
+                      <ui:CoverView Width="44" Height="44" Source="{Binding Track.Album.Thumb}" />
+                      <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{Binding Track.Title}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{Binding Track.Artist}" Classes="sub" />
+                      </StackPanel>
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+</UserControl>

@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.HistoryPanelView"
+             x:DataType="vm:MainViewModel">
+  <!-- История прослушивания. Только на этом компьютере: друзей и подписчиков у локального плеера нет. -->
+  <Border Classes="panel">
+    <DockPanel Margin="16">
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,12">
+        <TextBlock Text="История прослушивания" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="flat sort" Command="{Binding ClearHistoryCommand}" IsVisible="{Binding HasHistory}"
+                Margin="0,0,4,0">
+          <TextBlock Text="Очистить" FontSize="13" FontWeight="SemiBold" />
+        </Button>
+        <Button Grid.Column="2" Classes="icon hoverbg" Command="{Binding CloseRightPanelCommand}" ToolTip.Tip="Закрыть">
+          <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="16" Height="16" />
+        </Button>
+      </Grid>
+
+      <Panel>
+        <!-- Пусто: заглушка как у Spotify -->
+        <StackPanel IsVisible="{Binding HistoryEmpty}" Margin="20,16,20,0" Spacing="22">
+          <TextBlock Text="{Binding HistoryEmptyTitle}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <StackPanel Spacing="18">
+            <Grid ColumnDefinitions="Auto,*">
+              <Panel Width="56" Height="56">
+                <Ellipse Fill="#2A2A2A" />
+                <ui:Glyph Data="{x:Static ui:Icons.Note}" Width="24" Height="24" Foreground="{StaticResource SubBrush}" />
+                <Ellipse Width="12" Height="12" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right"
+                         VerticalAlignment="Top" Stroke="#121212" StrokeThickness="2" />
+              </Panel>
+              <StackPanel Grid.Column="1" Margin="18,0,0,0" Spacing="7" VerticalAlignment="Center">
+                <Border Classes="skel" Width="100" />
+                <Border Classes="skel" Width="78" />
+                <Border Classes="skel" Width="78" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*">
+              <Panel Width="56" Height="56">
+                <Ellipse Fill="#2A2A2A" />
+                <ui:Glyph Data="{x:Static ui:Icons.Note}" Width="24" Height="24" Foreground="{StaticResource SubBrush}" />
+                <Ellipse Width="12" Height="12" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right"
+                         VerticalAlignment="Top" Stroke="#121212" StrokeThickness="2" />
+              </Panel>
+              <StackPanel Grid.Column="1" Margin="18,0,0,0" Spacing="7" VerticalAlignment="Center">
+                <Border Classes="skel" Width="100" />
+                <Border Classes="skel" Width="78" />
+                <Border Classes="skel" Width="78" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*">
+              <Panel Width="56" Height="56">
+                <Ellipse Fill="#2A2A2A" />
+                <ui:Glyph Data="{x:Static ui:Icons.Note}" Width="24" Height="24" Foreground="{StaticResource SubBrush}" />
+              </Panel>
+              <StackPanel Grid.Column="1" Margin="18,0,0,0" Spacing="7" VerticalAlignment="Center">
+                <Border Classes="skel" Width="100" />
+                <Border Classes="skel" Width="78" />
+                <Border Classes="skel" Width="78" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+          <TextBlock Text="{Binding HistoryEmptyText}" FontSize="15" Foreground="#E6E6E6" TextWrapping="Wrap" LineHeight="22" />
+          <Button Classes="pill" HorizontalAlignment="Center" Padding="36,12" Command="{Binding OpenHistorySettingsCommand}">
+            <TextBlock Text="Настройки" />
+          </Button>
+        </StackPanel>
+
+        <!-- Список -->
+        <ScrollViewer IsVisible="{Binding HasHistory}">
+          <ItemsControl ItemsSource="{Binding History}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:HistoryItem">
+                <Button Classes="row" Command="{Binding PlayCommand}">
+                  <Grid ColumnDefinitions="48,*">
+                    <ui:CoverView Width="48" Height="48" Source="{Binding Track.Album.Thumb}" />
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+                      <TextBlock Text="{Binding Track.Title}" FontSize="15" FontWeight="Medium" />
+                      <TextBlock Text="{Binding Track.Artist}" Classes="sub" FontSize="13" />
+                      <TextBlock Text="{Binding When}" FontSize="12" Foreground="#8A8A8A" />
+                    </StackPanel>
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Panel>
+    </DockPanel>
+  </Border>
+</UserControl>

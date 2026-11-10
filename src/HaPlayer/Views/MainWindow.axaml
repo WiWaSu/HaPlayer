@@ -1,0 +1,151 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HaPlayer.ViewModels"
+        xmlns:v="using:HaPlayer.Views"
+        xmlns:ui="using:HaPlayer.Ui"
+        x:Class="HaPlayer.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="HaPlayer"
+        Icon="avares://HaPlayer/Assets/haplayer.ico"
+        Width="1440" Height="900" MinWidth="1000" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BgBrush}"
+
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="64"
+        DragDrop.AllowDrop="True">
+
+  <Window.Styles>
+    <!-- Выезжающий снизу экран. Закрытый остаётся в дереве, но прозрачен и не ловит мышь:
+         так работает анимация и в обратную сторону. -->
+    <Style Selector="v|NowPlayingView.sheet">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="RenderTransform" Value="translateY(120px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.22" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.32" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="v|NowPlayingView.sheet.open">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+
+    <Style Selector="v|EqualizerView.pop">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="RenderTransform" Value="translateY(16px) scale(0.98)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="v|EqualizerView.pop.open">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+  </Window.Styles>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:HomePageViewModel"><v:HomeView /></DataTemplate>
+    <DataTemplate DataType="vm:SearchPageViewModel"><v:SearchView /></DataTemplate>
+    <DataTemplate DataType="vm:TracksPageViewModel"><v:TracksView /></DataTemplate>
+    <DataTemplate DataType="vm:CollectionPageViewModel"><v:CollectionView /></DataTemplate>
+    <DataTemplate DataType="vm:SettingsPageViewModel"><v:SettingsView /></DataTemplate>
+  </Window.DataTemplates>
+
+  <Panel>
+    <Grid RowDefinitions="64,*,80" ColumnDefinitions="370,*,Auto" Margin="8,0">
+
+      <!-- Верхняя панель, как в Spotify. Пустые места не ловят мышь: за них окно перетаскивается. -->
+      <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,Auto,*">
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="4,0,0,0">
+          <Image Source="avares://HaPlayer/Assets/logo-64.png" Width="28" Height="28" Margin="0,0,10,0"
+                 IsHitTestVisible="False" />
+          <Button Classes="icon nav" Command="{Binding GoBackCommand}" IsEnabled="{Binding CanGoBack}"
+                  ToolTip.Tip="Назад">
+            <ui:Glyph Data="{x:Static ui:Icons.ChevronLeft}" Width="22" Height="22" />
+          </Button>
+          <Button Classes="icon nav" Command="{Binding GoForwardCommand}" IsEnabled="{Binding CanGoForward}"
+                  ToolTip.Tip="Вперёд">
+            <ui:Glyph Data="{x:Static ui:Icons.ChevronRight}" Width="22" Height="22" />
+          </Button>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="topround" Classes.active="{Binding IsHomeActive}" Command="{Binding GoHomeCommand}"
+                  ToolTip.Tip="Главная">
+            <ui:Glyph Data="{x:Static ui:Icons.Home}" Width="22" Height="22" />
+          </Button>
+          <Panel Width="470">
+            <TextBox x:Name="TopSearch" Classes="topsearch" Text="{Binding SearchQuery}"
+                     Watermark="Что хочешь включить?" />
+            <ui:Glyph Data="{x:Static ui:Icons.Search}" Width="22" Height="22" Foreground="{StaticResource SubBrush}"
+                      HorizontalAlignment="Left" Margin="16,0,0,0" IsHitTestVisible="False" />
+          </Panel>
+        </StackPanel>
+
+        <!-- Справа отступ под системные кнопки окна -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Margin="0,0,150,0">
+          <Button Classes="topround small" Classes.active="{Binding IsHistoryPanelOpen}" Command="{Binding ToggleHistoryPanelCommand}"
+                  ToolTip.Tip="История прослушивания" Margin="0,0,8,0">
+            <ui:Glyph Data="{x:Static ui:Icons.History}" Width="20" Height="20" />
+          </Button>
+          <Button Classes="topround small" Classes.active="{Binding IsSettingsActive}" Command="{Binding GoSettingsCommand}"
+                  ToolTip.Tip="{Binding SettingsTip}">
+            <ui:Glyph Data="{x:Static ui:Icons.Settings}" Width="20" Height="20" />
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <!-- Развёрнутая медиатека занимает и колонку страницы -->
+      <v:SidebarView Grid.Row="1" Grid.ColumnSpan="{Binding LibrarySpan}" Margin="0,0,8,8" />
+
+      <Border Grid.Row="1" Grid.Column="1" Classes="panel" ClipToBounds="True" Margin="0,0,0,8"
+              IsVisible="{Binding !IsLibraryExpanded}">
+        <ContentControl Content="{Binding CurrentPage}" />
+      </Border>
+
+      <!-- Правая панель: одна из трёх -->
+      <v:QueuePanelView Grid.Row="1" Grid.Column="2" Width="340" Margin="8,0,0,8"
+                        IsVisible="{Binding ShowQueuePanel}" />
+      <v:DevicesPanelView Grid.Row="1" Grid.Column="2" Width="340" Margin="8,0,0,8"
+                          IsVisible="{Binding ShowDevicesPanel}" />
+      <v:HistoryPanelView Grid.Row="1" Grid.Column="2" Width="340" Margin="8,0,0,8"
+                          IsVisible="{Binding ShowHistoryPanel}" />
+
+      <v:PlayerBarView Grid.Row="2" Grid.ColumnSpan="3" />
+
+      <!-- «Сейчас играет» на весь экран: выезжает снизу из нижней панели, как в Spotify -->
+      <v:NowPlayingView Grid.Row="1" Grid.RowSpan="2" Grid.ColumnSpan="3" Margin="-8,0,-8,0"
+                        Classes="sheet" Classes.open="{Binding IsNowPlayingOpen}" />
+
+      <!-- Эквалайзер: карточка над нижней панелью справа -->
+      <v:EqualizerView Grid.Row="1" Grid.ColumnSpan="3" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                       Margin="0,0,8,8" Classes="pop" Classes.open="{Binding IsEqualizerOpen}" />
+    </Grid>
+
+    <!-- Подсказка при перетаскивании файлов -->
+    <Border x:Name="DropOverlay" IsVisible="False" Background="#B3000000" IsHitTestVisible="False">
+      <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" CornerRadius="16"
+              Padding="64,48" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="Отпустите, чтобы добавить музыку" FontSize="20" FontWeight="Bold" />
+      </Border>
+    </Border>
+
+    <!-- Индикатор сканирования -->
+    <Border IsVisible="{Binding IsBusy}" Background="White" CornerRadius="8" Padding="18,10"
+            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,100"
+            BoxShadow="0 8 24 0 #80000000">
+      <TextBlock Text="{Binding BusyText}" Foreground="Black" FontWeight="SemiBold" />
+    </Border>
+  </Panel>
+</Window>
