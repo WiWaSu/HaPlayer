@@ -252,6 +252,22 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     public List<TrackRow> Rows { get; }
 
     public bool IsArtist => Item is ArtistItem;
+
+    /// <summary>
+    /// Альбомы исполнителя для страницы исполнителя: те, где поёт он сам, от новых к старым.
+    /// Сборники, где у него один трек, тоже попадают: так видно, где ещё он есть.
+    /// </summary>
+    public List<AlbumItem> ArtistAlbums => _artistAlbums ??= Item is ArtistItem artist
+        ? Main.Albums
+            .Where(a => a.Tracks.Any(t => ArtistItem.MakeKey(t.Artist) == artist.Key))
+            .OrderByDescending(a => a.Year)
+            .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList()
+        : [];
+
+    private List<AlbumItem>? _artistAlbums;
+
+    public bool HasArtistAlbums => ArtistAlbums.Count > 0;
     public bool IsPlaylist => Item is PlaylistItem;
     public bool CanChangePhoto => !Item.IsLikedCollection;
     public bool HasTracks => Rows.Count > 0;

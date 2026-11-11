@@ -79,6 +79,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
         _rescanOnStart = _s.RescanOnStart;
         _keepHistory = _s.KeepHistory;
+        _customAccentText = _s.CustomAccent ?? "";
         _headerFromCover = _s.HeaderFromCover;
         _selectedOutput = Outputs.FirstOrDefault(o => o.Id == _s.Output) ?? Outputs[0];
         _latency = _s.LatencyMs;
@@ -145,7 +146,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLibraryCat), nameof(IsSoundCat), nameof(IsLookCat), nameof(IsDownloadsCat),
-        nameof(IsDataCat), nameof(IsKeysCat))]
+        nameof(IsDataCat), nameof(IsKeysCat), nameof(IsAppCat))]
     private string _category = "library";
 
     public bool IsLibraryCat => Category == "library";
@@ -154,12 +155,99 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     public bool IsDownloadsCat => Category == "downloads";
     public bool IsDataCat => Category == "data";
     public bool IsKeysCat => Category == "keys";
+    public bool IsAppCat => Category == "app";
 
     [RelayCommand]
     private void SelectCategory(string category) => Category = category;
 
     /// <summary>Серая строка внизу настроек.</summary>
     public string FooterText => $"HaPlayer {Version} · без телеметрии · лицензия не выбрана";
+
+    // ---------- Свой акцентный цвет ----------
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CustomPreview), nameof(CustomValid))]
+    private string _customAccentText = "";
+
+    public bool CustomValid => HaPlayer.Ui.ThemeService.ParseHex(CustomAccentText) != null;
+
+    public IBrush CustomPreview => HaPlayer.Ui.ThemeService.ParseHex(CustomAccentText) is { } c
+        ? new SolidColorBrush(c)
+        : new SolidColorBrush(HaPlayer.Ui.ThemeService.Current.Accent);
+
+    public bool HasCustomAccent => !string.IsNullOrEmpty(_s.CustomAccent);
+
+    [RelayCommand]
+    private void ApplyCustomAccent()
+    {
+        if (HaPlayer.Ui.ThemeService.ParseHex(CustomAccentText) is not { } c) return;
+        _s.CustomAccent = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        _s.Save();
+        OnPropertyChanged(nameof(HasCustomAccent));
+        Main.ApplyTheme();
+    }
+
+    [RelayCommand]
+    private void ResetCustomAccent()
+    {
+        _s.CustomAccent = null;
+        _s.Save();
+        CustomAccentText = "";
+        OnPropertyChanged(nameof(HasCustomAccent));
+        Main.ApplyTheme();
+    }
+
+    // ---------- Окно и обновления ----------
+
+    public bool CloseToTray
+    {
+        get => _s.CloseToTray;
+        set
+        {
+            _s.CloseToTray = value;
+            _s.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool HasRepo => UpdateService.HasRepo;
+
+    public bool CheckUpdates
+    {
+        get => _s.CheckUpdates;
+        set
+        {
+            _s.CheckUpdates = value;
+            _s.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    [ObservableProperty] private string _updateStatus = "";
+
+    [RelayCommand]
+    private async Task CheckUpdatesNow()
+    {
+        UpdateStatus = "Проверяю…";
+        var release = await UpdateService.CheckAsync();
+        UpdateStatus = release == null ? $"У вас последняя версия ({Version})" : $"Есть версия {release.Version}";
+        Main.AvailableUpdate = release;
+    }
+
+    [RelayCommand]
+    private void OpenGitHub() => Open(UpdateService.RepoUrl);
+
+    private static void Open(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // браузер не открылся
+        }
+    }
 
     // ---------- Медиатека ----------
 
@@ -232,6 +320,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     private void SelectPalette(string id)
     {
         _s.Palette = id;
+        // Выбрали готовую палитру — свой цвет больше не перекрывает её акцент.
+        _s.CustomAccent = null;
+        CustomAccentText = "";
+        OnPropertyChanged(nameof(HasCustomAccent));
         _s.Save();
         MarkSelected();
         Main.ApplyTheme();

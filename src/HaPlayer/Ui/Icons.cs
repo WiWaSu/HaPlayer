@@ -64,7 +64,8 @@ public static class Icons
     public static readonly Geometry History = Parse("M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5 M12 7v5l4 2");
     public static readonly Geometry Lock = Parse("M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z M7 11V7a5 5 0 0 1 10 0v4");
     public static readonly Geometry PinOff = Parse("M12 17v5 M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89 M2 2l20 20 M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11");
-    public static readonly Geometry Collapse = Parse("M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7");
+    public static readonly Geometry GitHub = Parse("M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4 M9 18c-4.51 2-5-2-7-2");
+    public static readonly Geometry Collapse =Parse("M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7");
     public static readonly Geometry PanelRight = Parse("M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M15 3v18");
 
     private static readonly HashSet<Geometry> SolidSet = [Play, Pause, Next, Prev, Heart, Dot, CircleFill];

@@ -46,9 +46,32 @@ public sealed partial class TorrentRow : ObservableObject
             TorrentState.Metadata => $"Ищу участников и список файлов… На связи: {m.OpenConnections}",
             TorrentState.Hashing => "Проверяю файлы…",
             TorrentState.Seeding or TorrentState.Downloading when IsDone => $"Раздаётся · отдано {Size(m.Monitor.DataBytesSent)} · сейчас качают: {m.UploadingTo}",
-            TorrentState.Downloading => $"Скачано {m.PartialProgress:0}% · {Size(m.Monitor.DownloadRate)}/с · на связи: {m.OpenConnections}",
+            TorrentState.Downloading => $"Скачано {m.PartialProgress:0}% · {Size(m.Monitor.DownloadRate)}/с{Eta(m)} · на связи: {m.OpenConnections}",
             _ => "Запускаю…",
         };
+    }
+
+    // Скорость торрента скачет. Сглаживаем её, иначе «осталось» прыгало бы каждую секунду.
+    private double _smoothRate;
+
+    /// <summary>« · осталось ~5 мин». Пусто, пока скорость не устоялась.</summary>
+    private string Eta(TorrentManager m)
+    {
+        var rate = m.Monitor.DownloadRate;
+        _smoothRate = _smoothRate <= 0 ? rate : _smoothRate * 0.8 + rate * 0.2;
+        if (!m.HasMetadata || _smoothRate < 1024) return "";
+
+        // Считаем только файлы, которые качаем (из раздачи берутся аудио и обложки).
+        var wanted = m.Files.Where(f => f.Priority != Priority.DoNotDownload).Sum(f => f.Length);
+        var left = wanted * (1 - m.PartialProgress / 100.0);
+        if (left <= 0) return "";
+
+        var t = TimeSpan.FromSeconds(left / _smoothRate);
+        var text = t.TotalMinutes < 1 ? "меньше минуты"
+            : t.TotalHours < 1 ? $"~{Math.Ceiling(t.TotalMinutes):0} мин"
+            : t.TotalDays < 1 ? $"~{(int)t.TotalHours} ч {t.Minutes} мин"
+            : "больше суток";
+        return $" · осталось {text}";
     }
 
     private static string Size(long bytes) => bytes switch

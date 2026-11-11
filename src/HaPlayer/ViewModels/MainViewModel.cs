@@ -177,6 +177,78 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Перезапуск программы. Задаёт App: ему виден жизненный цикл окна.</summary>
     public Action? RestartRequested { get; set; }
 
+    // ---------- Обновления ----------
+
+    /// <summary>Новая версия на GitHub, если нашлась. Тогда в верхней панели появляется кнопка.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdate), nameof(UpdateText))]
+    private UpdateService.Release? _availableUpdate;
+
+    public bool HasUpdate => AvailableUpdate != null;
+    public string UpdateText => AvailableUpdate == null ? "" : $"Версия {AvailableUpdate.Version}";
+
+    /// <summary>Проверка при запуске. Только если пользователь её включил: без спроса в сеть не ходим.</summary>
+    public async Task CheckUpdatesOnStartAsync()
+    {
+        if (Settings.CheckUpdates) AvailableUpdate = await UpdateService.CheckAsync();
+    }
+
+    /// <summary>Настоящий выход из программы (минуя сворачивание в трей). Задаёт App.</summary>
+    public Action? ExitRequested { get; set; }
+
+    /// <summary>
+    /// Кнопка «Версия X.Y»: скачать новый HaPlayer.exe с GitHub, проверить и перезапуститься в новой версии.
+    /// Если обновиться на месте нельзя, открывается страница релиза.
+    /// </summary>
+    [RelayCommand]
+    public async Task InstallUpdate()
+    {
+        if (AvailableUpdate is not { } r || Dialogs == null || IsBusy) return;
+
+        if (!UpdateService.CanSelfUpdate(r))
+        {
+            var open = await Dialogs.ConfirmAsync($"Доступна версия {r.Version}",
+                "Обновить автоматически не получится: нет записи в папку программы. Открыть страницу релиза?", "Открыть");
+            if (open) OpenUrl(r.Url);
+            return;
+        }
+
+        var mb = r.Size > 0 ? $" Скачается {r.Size / 1048576.0:0} МБ." : "";
+        var ok = await Dialogs.ConfirmAsync($"Обновить до {r.Version}?",
+            $"HaPlayer скачает новую версию с GitHub и перезапустится.{mb} Медиатека и настройки останутся.", "Обновить");
+        if (!ok) return;
+
+        IsBusy = true;
+        BusyText = "Скачиваю обновление…";
+        try
+        {
+            var progress = new Progress<double>(p => BusyText = $"Скачиваю обновление: {p:0}%");
+            var file = await UpdateService.DownloadAsync(r, progress);
+            BusyText = "Устанавливаю…";
+            SaveSession();
+            Settings.Save();
+            UpdateService.ApplyAndRestart(file, () => ExitRequested?.Invoke());
+        }
+        catch (Exception e)
+        {
+            IsBusy = false;
+            var open = await Dialogs.ConfirmAsync("Обновить не получилось", $"{e.Message}\n\nОткрыть страницу релиза и скачать вручную?", "Открыть");
+            if (open) OpenUrl(r.Url);
+        }
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // браузер не открылся
+        }
+    }
+
     /// <summary>
     /// Переключает место хранения данных. Медиатека, плейлисты, лайки, фото и настройки копируются в новую папку,
     /// старая копия остаётся на месте. После этого HaPlayer перезапускается.
@@ -337,7 +409,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void ApplyTheme()
     {
-        HaPlayer.Ui.ThemeService.Apply(Settings.Palette, Settings.Surface);
+        HaPlayer.Ui.ThemeService.Apply(Settings.Palette, Settings.Surface, Settings.CustomAccent);
         Rebuild();
         if (CurrentPage is not SettingsPageViewModel) RefreshPage();
         NowPlayingBrush = Gradients.NowPlaying(HaPlayer.Ui.ThemeService.HeaderTint);

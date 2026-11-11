@@ -38,9 +38,27 @@ public static class ThemeService
 
     public static event Action? Changed;
 
-    public static void Apply(string paletteId, string surfaceId)
+    /// <summary>Разбирает «#RRGGBB» или «RRGGBB». null — строка не похожа на цвет.</summary>
+    public static Color? ParseHex(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var s = text.Trim();
+        if (!s.StartsWith('#')) s = "#" + s;
+        return s.Length == 7 && Color.TryParse(s, out var c) ? c : null;
+    }
+
+    public static void Apply(string paletteId, string surfaceId, string? customAccent = null)
     {
         Current = Palettes.FirstOrDefault(p => p.Id == paletteId) ?? Palettes[0];
+        // Свой цвет заменяет акцент палитры. Оттенок при наведении светлее, «глубокий» для градиентов темнее.
+        if (ParseHex(customAccent) is { } accent)
+            Current = Current with
+            {
+                Id = "custom",
+                Accent = accent,
+                AccentHover = Mix(accent, Colors.White, 0.25),
+                Deep = Mix(accent, Colors.Black, 0.65),
+            };
         CurrentSurface = Surfaces.FirstOrDefault(s => s.Id == surfaceId) ?? Surfaces[0];
         if (Application.Current is not { } app) return;
 

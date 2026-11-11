@@ -58,6 +58,15 @@ public sealed class Settings
     /// <summary>Закреплённые пользователем коллекции, ключи вида «album:…», в порядке закрепления.</summary>
     public List<string> PinnedCollections { get; set; } = [];
 
+    /// <summary>Крестик окна прячет плеер в трей, музыка продолжает играть. Выход — из меню значка в трее.</summary>
+    public bool CloseToTray { get; set; } = true;
+
+    /// <summary>Проверять новые версии на GitHub при запуске. Сеть без спроса не трогаем, поэтому выключено.</summary>
+    public bool CheckUpdates { get; set; }
+
+    /// <summary>Свой акцентный цвет (#RRGGBB) поверх палитры. Пусто — цвет палитры.</summary>
+    public string? CustomAccent { get; set; }
+
     /// <summary>Вести историю прослушивания (хранится только на этом компьютере).</summary>
     public bool KeepHistory { get; set; } = true;
 

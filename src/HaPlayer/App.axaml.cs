@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -18,6 +18,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // После обновления убираем прежний exe (HaPlayer.exe.old) и недокачанное.
+            UpdateService.CleanupAfterUpdate();
+
             var dataDir = AppPaths.DataDirectory;
             var db = new LibraryDb(Path.Combine(dataDir, "library.db"));
             var settings = Settings.Load(Path.Combine(dataDir, "settings.json"));
@@ -25,7 +28,7 @@ public partial class App : Application
             var covers = new CoverService();
 
             // Тема и форматы применяются до создания окна, чтобы оно сразу открылось в нужных цветах.
-            Ui.ThemeService.Apply(settings.Palette, settings.Surface);
+            Ui.ThemeService.Apply(settings.Palette, settings.Surface, settings.CustomAccent);
             AudioFormats.SetDisabled(settings.DisabledFormats);
 
             var vm = new MainViewModel(db, settings, engine, covers);
@@ -52,16 +55,24 @@ public partial class App : Application
                 vm.SaveSession();
             };
 
+            // Значок в трее. Крестик прячет окно туда, если включено «Сворачивать в трей».
+            var tray = new Ui.TrayController(this, desktop, window, vm);
+            desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            vm.ExitRequested = tray.Exit;
+            window.Closed += (_, _) => tray.Exit();
+
             vm.RestartRequested = () =>
             {
                 vm.SaveSession();
                 if (Environment.ProcessPath is { } exe) Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
-                desktop.Shutdown();
+                tray.Exit();
             };
 
             // Проверка папок при запуске: только новые и изменённые файлы, в фоне, после показа окна.
             if (settings.RescanOnStart && settings.MusicFolders.Count > 0)
                 window.Opened += async (_, _) => await vm.RescanAsync();
+
+            window.Opened += async (_, _) => await vm.CheckUpdatesOnStartAsync();
 
             // Торренты: если были включены, продолжаем раздачи после показа окна.
             if (settings.TorrentsEnabled)

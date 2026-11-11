@@ -93,6 +93,8 @@
                 Command="{Binding SelectCategoryCommand}" CommandParameter="data" />
         <Button Classes="cat" Classes.active="{Binding IsKeysCat}" Content="Клавиши"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="keys" />
+        <Button Classes="cat" Classes.active="{Binding IsAppCat}" Content="Программа"
+                Command="{Binding SelectCategoryCommand}" CommandParameter="app" />
       </StackPanel>
 
       <ScrollViewer Grid.Column="1">
@@ -234,6 +236,18 @@
               </ItemsControl>
             </StackPanel>
             <StackPanel Classes="group">
+              <TextBlock Text="Свой цвет" Classes="title" />
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <Ellipse Width="40" Height="40" Fill="{Binding CustomPreview}" VerticalAlignment="Center" />
+                <TextBox Classes="inline" Width="140" Watermark="#FF2BD6" Text="{Binding CustomAccentText}"
+                         VerticalAlignment="Center" />
+                <Button Classes="pill" Content="Применить" Command="{Binding ApplyCustomAccentCommand}"
+                        IsEnabled="{Binding CustomValid}" VerticalAlignment="Center" />
+                <Button Classes="pill dark" Content="Цвет палитры" Command="{Binding ResetCustomAccentCommand}"
+                        IsVisible="{Binding HasCustomAccent}" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Classes="group">
               <TextBlock Text="Фон" Classes="title" />
               <ItemsControl ItemsSource="{Binding Surfaces}">
                 <ItemsControl.ItemsPanel>
@@ -365,6 +379,43 @@
                 <TextBlock Text="Вести историю прослушивания" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepHistory}" VerticalAlignment="Center" />
               </Grid>
+            </StackPanel>
+          </StackPanel>
+
+          <!-- ===== Программа ===== -->
+          <StackPanel IsVisible="{Binding IsAppCat}">
+            <StackPanel Classes="group">
+              <TextBlock Text="Окно" Classes="title" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Крестик сворачивает в трей" Classes="label" />
+                  <TextBlock Text="Выход — правой кнопкой по значку в трее." Classes="sub" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CloseToTray}" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+            <StackPanel Classes="group" IsVisible="{Binding HasRepo}">
+              <TextBlock Text="Обновления" Classes="title" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="Проверять при запуске" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckUpdates}" VerticalAlignment="Center" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Classes="pill dark" Content="Проверить сейчас" Command="{Binding CheckUpdatesNowCommand}" />
+                <Button Classes="pill" IsVisible="{Binding Main.HasUpdate}" Command="{Binding Main.InstallUpdateCommand}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ui:Glyph Data="{x:Static ui:Icons.Import}" Width="16" Height="16" />
+                    <TextBlock Text="Обновить" />
+                  </StackPanel>
+                </Button>
+                <TextBlock Text="{Binding UpdateStatus}" Classes="sub" VerticalAlignment="Center" />
+              </StackPanel>
+              <Button Classes="pill dark" HorizontalAlignment="Left" Command="{Binding OpenGitHubCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <ui:Glyph Data="{x:Static ui:Icons.GitHub}" Width="16" Height="16" />
+                  <TextBlock Text="HaPlayer на GitHub" />
+                </StackPanel>
+              </Button>
             </StackPanel>
           </StackPanel>
 
