@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
@@ -27,11 +27,11 @@
         <StackPanel>
           <!-- Как у Spotify: большая «играть», «перемешать» и «…» с остальными действиями -->
           <StackPanel Orientation="Horizontal" Spacing="20" Margin="0,0,0,24">
-            <Button Classes="primary" Command="{Binding PlayCommand}" IsEnabled="{Binding HasTracks}" ToolTip.Tip="Играть">
+            <Button Classes="primary" Command="{Binding PlayCommand}" IsEnabled="{Binding HasTracks}" ToolTip.Tip="{ui:T 'Играть'}">
               <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="28" Height="28" />
             </Button>
             <Button Classes="icon large" Command="{Binding ShufflePlayCommand}" IsEnabled="{Binding HasTracks}"
-                    VerticalAlignment="Center" ToolTip.Tip="Играть в случайном порядке">
+                    VerticalAlignment="Center" ToolTip.Tip="{ui:T 'Играть в случайном порядке'}">
               <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="28" Height="28" />
             </Button>
             <Button x:Name="MoreButton" Classes="icon large" VerticalAlignment="Center"
@@ -42,22 +42,22 @@
 
           <!-- Тёмные таблетки под кнопками, как «+ Добавить» и «Название и сведения» у Spotify -->
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,-8,0,24">
-            <Button Classes="pill dark" Command="{Binding AddSongsCommand}">
+            <Button Classes="pill dark" Command="{Binding AddSongsCommand}" IsVisible="{Binding CanAddSongs}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <ui:Glyph Data="{x:Static ui:Icons.Add}" Width="16" Height="16" />
-                <TextBlock Text="Добавить" />
+                <TextBlock Text="{ui:T 'Добавить'}" />
               </StackPanel>
             </Button>
             <Button Classes="pill dark" Command="{Binding RenameCommand}" IsVisible="{Binding IsPlaylist}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <ui:Glyph Data="{x:Static ui:Icons.Edit}" Width="16" Height="16" />
-                <TextBlock Text="Название" />
+                <TextBlock Text="{ui:T 'Название'}" />
               </StackPanel>
             </Button>
             <Button Classes="pill dark" Command="{Binding ChangePhotoCommand}" IsVisible="{Binding CanChangePhoto}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <ui:Glyph Data="{x:Static ui:Icons.Photo}" Width="16" Height="16" />
-                <TextBlock Text="Обложка" />
+                <TextBlock Text="{ui:T 'Обложка'}" />
               </StackPanel>
             </Button>
           </StackPanel>
@@ -67,7 +67,7 @@
 
           <!-- Страница исполнителя: его альбомы обложками, как «Дискография» у Spotify -->
           <StackPanel IsVisible="{Binding HasArtistAlbums}" Spacing="12" Margin="0,0,0,28">
-            <TextBlock Text="Альбомы" Classes="h2" />
+            <TextBlock Text="{ui:T 'Альбомы'}" Classes="h2" />
             <ItemsControl ItemsSource="{Binding ArtistAlbums}" Margin="-12,0,0,0">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -92,19 +92,19 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock Text="Треки" Classes="h2" Margin="0,12,0,0" IsVisible="{Binding HasTracks}" />
+            <TextBlock Text="{ui:T 'Треки'}" Classes="h2" Margin="0,12,0,0" IsVisible="{Binding HasTracks}" />
           </StackPanel>
 
           <StackPanel IsVisible="{Binding HasTracks}">
-            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,8"
+            <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,8"
                     Margin="0,0,0,8">
               <Grid ColumnDefinitions="40,5*,3*,120,120">
                 <TextBlock Text="#" Classes="sub" HorizontalAlignment="Right" />
-                <TextBlock Grid.Column="1" Text="Название" Classes="sub" Margin="16,0,0,0" />
-                <TextBlock Grid.Column="2" Text="Альбом" Classes="sub" IsVisible="{Binding ShowAlbumColumn}" />
-                <TextBlock Grid.Column="3" Text="Дата добавления" Classes="sub" />
+                <TextBlock Grid.Column="1" Text="{ui:T 'Название'}" Classes="sub coltitle" Margin="16,0,0,0" />
+                <TextBlock Grid.Column="2" Text="{ui:T 'Альбом'}" Classes="sub colalbum" Classes.noalbum="{Binding !ShowAlbumColumn}" />
+                <TextBlock Grid.Column="3" Text="{ui:T 'Дата добавления'}" Classes="sub coldate" />
                 <ui:Glyph Grid.Column="4" Data="{x:Static ui:Icons.Clock}" Width="16" Height="16"
-                          Foreground="{StaticResource SubBrush}" HorizontalAlignment="Right" Margin="0,0,24,0" />
+                          Foreground="{DynamicResource SubBrush}" HorizontalAlignment="Right" Margin="0,0,24,0" />
               </Grid>
             </Border>
 

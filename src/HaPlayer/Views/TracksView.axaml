@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:v="using:HaPlayer.Views"
@@ -17,32 +17,32 @@
             <ui:Glyph Data="{x:Static ui:Icons.Library}" Width="64" Height="64" Foreground="White" />
           </Border>
           <StackPanel VerticalAlignment="Bottom">
-            <TextBlock Text="Медиатека" FontSize="13" FontWeight="SemiBold" />
-            <TextBlock Text="Все треки" Classes="hero" />
+            <TextBlock Text="{ui:T 'Медиатека'}" FontSize="13" FontWeight="SemiBold" />
+            <TextBlock Text="{ui:T 'Все треки'}" Classes="hero" />
             <TextBlock Text="{Binding Summary}" FontSize="14" Foreground="#C0FFFFFF" />
           </StackPanel>
         </StackPanel>
       </Border>
 
       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="20" Margin="24,20,24,16">
-        <Button Classes="primary" Command="{Binding PlayAllCommand}" ToolTip.Tip="Играть все">
+        <Button Classes="primary" Command="{Binding PlayAllCommand}" ToolTip.Tip="{ui:T 'Играть все'}">
           <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="28" Height="28" />
         </Button>
         <Button Classes="icon large" Command="{Binding ShufflePlayCommand}" VerticalAlignment="Center"
-                ToolTip.Tip="Играть в случайном порядке">
+                ToolTip.Tip="{ui:T 'Играть в случайном порядке'}">
           <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="28" Height="28" />
         </Button>
       </StackPanel>
 
-      <Border DockPanel.Dock="Top" Margin="24,0" BorderBrush="{StaticResource DividerBrush}"
+      <Border DockPanel.Dock="Top" Margin="24,0" BorderBrush="{DynamicResource DividerBrush}"
               BorderThickness="0,0,0,1" Padding="0,0,0,8">
         <Grid ColumnDefinitions="40,5*,3*,120,120">
           <TextBlock Text="#" Classes="sub" HorizontalAlignment="Right" />
-          <TextBlock Grid.Column="1" Text="Название" Classes="sub" Margin="16,0,0,0" />
-          <TextBlock Grid.Column="2" Text="Альбом" Classes="sub" />
-          <TextBlock Grid.Column="3" Text="Дата добавления" Classes="sub" />
+          <TextBlock Grid.Column="1" Text="{ui:T 'Название'}" Classes="sub coltitle" Margin="16,0,0,0" />
+          <TextBlock Grid.Column="2" Text="{ui:T 'Альбом'}" Classes="sub colalbum" />
+          <TextBlock Grid.Column="3" Text="{ui:T 'Дата добавления'}" Classes="sub coldate" />
           <ui:Glyph Grid.Column="4" Data="{x:Static ui:Icons.Clock}" Width="16" Height="16"
-                    Foreground="{StaticResource SubBrush}" HorizontalAlignment="Right" Margin="0,0,24,0" />
+                    Foreground="{DynamicResource SubBrush}" HorizontalAlignment="Right" Margin="0,0,24,0" />
         </Grid>
       </Border>
 

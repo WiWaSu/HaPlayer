@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using System.Text.Json;
 
 namespace HaPlayer.Library;
@@ -20,7 +21,7 @@ public sealed class Settings
     public bool EqEnabled { get; set; }
     public double EqPreamp { get; set; }
     public double[] EqGains { get; set; } = new double[10];
-    public string EqPreset { get; set; } = "Плоский";
+    public string EqPreset { get; set; } = L.T("Плоский");
 
     // Медиатека
     public List<string> MusicFolders { get; set; } = [];
@@ -58,6 +59,24 @@ public sealed class Settings
     /// <summary>Закреплённые пользователем коллекции, ключи вида «album:…», в порядке закрепления.</summary>
     public List<string> PinnedCollections { get; set; } = [];
 
+    /// <summary>Медиаклавиши и Ctrl+Alt+… работают, даже когда окно свёрнуто.</summary>
+    public bool GlobalHotkeys { get; set; } = true;
+
+    /// <summary>Компактный список треков: строки ниже, без обложек.</summary>
+    public bool CompactList { get; set; }
+
+    /// <summary>Показывать формат, битрейт, частоту и каналы под названием трека.</summary>
+    public bool ShowTechInfo { get; set; }
+
+    /// <summary>Показывать, сколько раз трек был прослушан.</summary>
+    public bool ShowPlayCount { get; set; }
+
+    /// <summary>Строгий режим: никаких своих альбомов, исполнителей и правок поверх тегов, только то, что в файлах.</summary>
+    public bool StrictTags { get; set; }
+
+    /// <summary>Возвращать очередь и трек при запуске.</summary>
+    public bool RestoreQueue { get; set; } = true;
+
     /// <summary>Крестик окна прячет плеер в трей, музыка продолжает играть. Выход — из меню значка в трее.</summary>
     public bool CloseToTray { get; set; } = true;
 
@@ -73,6 +92,18 @@ public sealed class Settings
     /// <summary>Устройство вывода звука. Пусто — устройство Windows по умолчанию.</summary>
     public string? OutputDeviceId { get; set; }
 
+    /// <summary>
+    /// Язык интерфейса: "en" или "ru". null в файле от версии до 1.6 — значит, человек уже пользовался
+    /// русским интерфейсом. Новая установка начинает с английского.
+    /// </summary>
+    public string? Language { get; set; }
+
+    /// <summary>Масштаб интерфейса: 0.85, 1, 1.15 или 1.3.</summary>
+    public double UiScale { get; set; } = 1;
+
+    /// <summary>Шрифт интерфейса: Inter (встроенный), Segoe UI или Bahnschrift.</summary>
+    public string UiFont { get; set; } = "Inter";
+
     // Окно
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
@@ -86,7 +117,15 @@ public sealed class Settings
         Settings s;
         try
         {
-            s = File.Exists(file) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(file)) ?? new() : new();
+            if (File.Exists(file))
+            {
+                s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(file)) ?? new();
+                s.Language ??= "ru";
+            }
+            else
+            {
+                s = new() { Language = "en" };
+            }
         }
         catch
         {

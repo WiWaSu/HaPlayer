@@ -1,4 +1,5 @@
-﻿using Avalonia.Media.Imaging;
+﻿using HaPlayer.Ui;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HaPlayer.Library;
@@ -11,11 +12,11 @@ public sealed partial class TrackItem(Track model) : ObservableObject
     public Track Model { get; private set; } = model;
     public string Path => Model.Path;
     public string Title => Model.Title;
-    public string Artist => Model.EffectiveArtist;
-    public string AlbumName => Model.EffectiveAlbum;
+    public string Artist => L.Data(Model.EffectiveArtist);
+    public string AlbumName => L.Data(Model.EffectiveAlbum);
     public string DurationText => Model.DurationSeconds > 0 ? Format.Time(Model.DurationSeconds) : "–";
 
-    private static readonly System.Globalization.CultureInfo Ru = new("ru-RU");
+    private static System.Globalization.CultureInfo Ru => L.Culture;
 
     /// <summary>«4 сент. 2026 г.», как в колонке «Дата добавления» у Spotify.</summary>
     public string AddedText => Model.AddedTicks > 0
@@ -26,6 +27,29 @@ public sealed partial class TrackItem(Track model) : ObservableObject
     [ObservableProperty] private bool _isCurrent;
     [ObservableProperty] private bool _isPlaying;
     [ObservableProperty] private bool _isLiked;
+
+    /// <summary>Файла нет на месте: диск отключён, файл удалён или переименован.</summary>
+    [ObservableProperty] private bool _isMissing;
+
+    /// <summary>Сколько раз трек дослушали (по истории) и когда в последний раз, UTC ticks.</summary>
+    public int PlayCount { get; set; }
+    public long LastPlayedTicks { get; set; }
+
+    public string Extension => System.IO.Path.GetExtension(Path).TrimStart('.').ToUpperInvariant();
+
+    /// <summary>«FLAC · 44,1 кГц · 912 кбит/с · стерео». Пусто, пока данные не прочитаны.</summary>
+    public string TechText
+    {
+        get
+        {
+            var m = Model;
+            if (m.SampleRate <= 0) return Extension;
+            var parts = new List<string> { Extension, L.F("{0:0.#} кГц", m.SampleRate / 1000.0) };
+            if (m.Bitrate > 0) parts.Add(L.F("{0} кбит/с", m.Bitrate));
+            parts.Add(m.Channels switch { 1 => L.T("моно"), 2 => L.T("стерео"), > 2 => L.F("{0} кан.", m.Channels), _ => "" });
+            return string.Join(" · ", parts.Where(p => p.Length > 0));
+        }
+    }
 
     /// <summary>
     /// Одна и та же песня в разных файлах (копия в другой папке, другой битрейт) даёт один ключ:
@@ -101,9 +125,9 @@ public abstract partial class CollectionItem : ObservableObject
     /// <summary>Как называть коллекцию в вопросах «Удалить …?».</summary>
     public string KindName => this switch
     {
-        AlbumItem => "альбом",
-        ArtistItem => "исполнителя",
-        _ => "плейлист",
+        AlbumItem => L.T("альбом"),
+        ArtistItem => L.T("исполнителя"),
+        _ => L.T("плейлист"),
     };
 
     /// <summary>Исполнители в медиатеке с круглым фото.</summary>
@@ -166,7 +190,7 @@ public sealed class AlbumItem(
     public string Artist { get; } = artist;
     public int Year { get; } = year;
 
-    public override string Subtitle => $"Альбом • {Artist}";
+    public override string Subtitle => L.F("Альбом • {0}", Artist);
     public string CardSubtitle => Year > 0 ? $"{Year} • {Artist}" : Artist;
 }
 
@@ -181,7 +205,7 @@ public sealed class ArtistItem(
     public override string Key { get; } = MakeKey(name);
     public override string Name { get; } = name;
     public override List<TrackItem> Tracks { get; } = tracks;
-    public override string Subtitle => "Исполнитель";
+    public override string Subtitle => L.T("Исполнитель");
 }
 
 public sealed class PlaylistItem(
@@ -194,7 +218,7 @@ public sealed class PlaylistItem(
     public override string Key { get; } = id.ToString();
     public override string Name { get; } = name;
     public override List<TrackItem> Tracks { get; } = tracks;
-    public override string Subtitle => $"Плейлист • {Format.Tracks(Tracks.Count)}";
+    public override string Subtitle => L.F("Плейлист • {0}", Format.Tracks(Tracks.Count));
 }
 
 /// <summary>Вся медиатека одним списком. Закреплена в медиатеке слева и открывает страницу «Все треки».</summary>
@@ -203,11 +227,29 @@ public sealed class AllTracksItem(List<TrackItem> tracks, CoverService covers, A
 {
     public override string Kind => "all";
     public override string Key => "all";
-    public override string Name => "Все треки";
+    public override string Name => L.T("Все треки");
     public override List<TrackItem> Tracks { get; } = tracks;
-    public override string Subtitle => $"Медиатека • {Format.Tracks(Tracks.Count)}";
+    public override string Subtitle => L.F("Медиатека • {0}", Format.Tracks(Tracks.Count));
     public override Avalonia.Media.Geometry? Badge => HaPlayer.Ui.Icons.Library;
     public override bool IsBuiltInPinned => true;
+}
+
+/// <summary>
+/// Подборка, которую плеер собирает сам: недавно добавленные, часто слушаю, давно не слушал.
+/// Список пересчитывается при каждом открытии, вручную его не меняют.
+/// </summary>
+public sealed class SmartItem(string key, string name, string description, List<TrackItem> tracks,
+    CoverService covers, Action<CollectionItem> open, Action<CollectionItem> play)
+    : CollectionItem(covers, null, open, play)
+{
+    public override string Kind => "smart";
+    public override string Key { get; } = key;
+    public override string Name { get; } = name;
+    public override List<TrackItem> Tracks { get; } = tracks;
+    public string Description { get; } = description;
+    public override string Subtitle => L.F("Подборка • {0}", Format.Tracks(Tracks.Count));
+    public string CardSubtitle => Description;
+    public override Avalonia.Media.Geometry? Badge => HaPlayer.Ui.Icons.Sparkles;
 }
 
 /// <summary>Строка истории прослушивания: трек и когда его слушали.</summary>
@@ -221,11 +263,11 @@ public sealed class HistoryItem(TrackItem track, DateTime playedAtLocal, Action 
         get
         {
             var ago = DateTime.Now - playedAtLocal;
-            if (ago.TotalMinutes < 1) return "только что";
-            if (ago.TotalMinutes < 60) return $"{(int)ago.TotalMinutes} мин назад";
-            if (playedAtLocal.Date == DateTime.Today) return $"сегодня в {playedAtLocal:HH:mm}";
-            if (playedAtLocal.Date == DateTime.Today.AddDays(-1)) return $"вчера в {playedAtLocal:HH:mm}";
-            return playedAtLocal.ToString("d MMM, HH:mm", new System.Globalization.CultureInfo("ru-RU"));
+            if (ago.TotalMinutes < 1) return L.T("только что");
+            if (ago.TotalMinutes < 60) return L.F("{0} мин назад", (int)ago.TotalMinutes);
+            if (playedAtLocal.Date == DateTime.Today) return L.F("сегодня в {0:HH:mm}", playedAtLocal);
+            if (playedAtLocal.Date == DateTime.Today.AddDays(-1)) return L.F("вчера в {0:HH:mm}", playedAtLocal);
+            return playedAtLocal.ToString("d MMM, HH:mm", L.Culture);
         }
     }
 }
@@ -235,12 +277,12 @@ public sealed class DeviceItem(HaPlayer.Audio.AudioDevice device, bool isCurrent
 {
     public string Name { get; } = device.Name;
     public bool IsCurrent { get; } = isCurrent;
-    public string Subtitle => device.IsDefault ? "Устройство Windows по умолчанию" : device.Kind switch
+    public string Subtitle => device.IsDefault ? L.T("Устройство Windows по умолчанию") : device.Kind switch
     {
-        HaPlayer.Audio.DeviceKind.Headphones => "Наушники",
+        HaPlayer.Audio.DeviceKind.Headphones => L.T("Наушники"),
         HaPlayer.Audio.DeviceKind.Bluetooth => "Bluetooth",
-        HaPlayer.Audio.DeviceKind.Monitor => "Монитор или телевизор",
-        _ => "Колонки",
+        HaPlayer.Audio.DeviceKind.Monitor => L.T("Монитор или телевизор"),
+        _ => L.T("Колонки"),
     };
     public Avalonia.Media.Geometry Icon => device.Kind switch
     {
@@ -268,9 +310,9 @@ public sealed class LikedItem(List<TrackItem> tracks, CoverService covers, Actio
 {
     public override string Kind => "liked";
     public override string Key => "liked";
-    public override string Name => "Любимые треки";
+    public override string Name => L.T("Любимые треки");
     public override List<TrackItem> Tracks { get; } = tracks;
-    public override string Subtitle => $"Плейлист • {Format.Tracks(Tracks.Count)}";
+    public override string Subtitle => L.F("Плейлист • {0}", Format.Tracks(Tracks.Count));
     public override bool IsLikedCollection => true;
     public override Avalonia.Media.Geometry? Badge => HaPlayer.Ui.Icons.Heart;
     public override bool IsBuiltInPinned => true;
@@ -278,13 +320,32 @@ public sealed class LikedItem(List<TrackItem> tracks, CoverService covers, Actio
 
 /// <summary>Строка в таблице треков: номер зависит от списка, поэтому хранится отдельно от TrackItem.</summary>
 public sealed class TrackRow(int index, string number, TrackItem item, string secondary, bool showCover,
-    Action play, Action toggle, Action like)
+    Action play, Action toggle, Action like, TrackRowOptions? options = null)
 {
+    private readonly TrackRowOptions _o = options ?? TrackRowOptions.Default;
+
     public int Index { get; } = index;
     public string Number { get; } = number;
     public TrackItem Item { get; } = item;
     public string Secondary { get; } = secondary;
-    public bool ShowCover { get; } = showCover;
+    public bool ShowCover { get; } = showCover && !(options?.Compact ?? false);
+    public bool Compact => _o.Compact;
+    public double RowHeight => _o.Compact ? 40 : 56;
+    public double LineSpacing => _o.Compact ? 0 : 3;
+
+    /// <summary>Колонка с техданными и числом прослушиваний: только если включено в настройках.</summary>
+    public string Extra
+    {
+        get
+        {
+            var parts = new List<string>(2);
+            if (_o.ShowTech) parts.Add(Item.TechText);
+            if (_o.ShowPlays && Item.PlayCount > 0) parts.Add($"{Item.PlayCount} ×");
+            return string.Join("  ", parts);
+        }
+    }
+
+    public bool HasExtra => _o.ShowTech || _o.ShowPlays;
 
     /// <summary>Двойной клик: играть с этого трека.</summary>
     public IRelayCommand PlayCommand { get; } = new RelayCommand(play);
@@ -293,6 +354,12 @@ public sealed class TrackRow(int index, string number, TrackItem item, string se
     public IRelayCommand ToggleCommand { get; } = new RelayCommand(toggle);
 
     public IRelayCommand LikeCommand { get; } = new RelayCommand(like);
+}
+
+/// <summary>Вид строк в списках треков, из настроек.</summary>
+public sealed record TrackRowOptions(bool Compact, bool ShowTech, bool ShowPlays)
+{
+    public static readonly TrackRowOptions Default = new(false, false, false);
 }
 
 public static class Format
@@ -307,16 +374,8 @@ public static class Format
     public static string Total(double seconds)
     {
         var t = TimeSpan.FromSeconds(seconds);
-        return t.TotalHours >= 1 ? $"{(int)t.TotalHours} ч {t.Minutes} мин" : $"{t.Minutes} мин";
+        return t.TotalHours >= 1 ? L.F("{0} ч {1} мин", (int)t.TotalHours, t.Minutes) : L.F("{0} мин", t.Minutes);
     }
 
-    public static string Tracks(int n)
-    {
-        var mod10 = n % 10;
-        var mod100 = n % 100;
-        var word = mod10 == 1 && mod100 != 11 ? "трек"
-            : mod10 is >= 2 and <= 4 && (mod100 < 12 || mod100 > 14) ? "трека"
-            : "треков";
-        return $"{n} {word}";
-    }
+    public static string Tracks(int n) => L.Plural(n, "трек", "трека", "треков", "track", "tracks");
 }

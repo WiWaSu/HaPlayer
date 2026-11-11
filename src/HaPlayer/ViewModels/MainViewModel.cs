@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,6 +15,7 @@ public interface IDialogService
     Task<string?> PickImageAsync();
     Task<IReadOnlyList<string>> PickPlaylistFilesAsync();
     Task<string?> PickTorrentFileAsync();
+    Task<string?> PickSaveFileAsync(string suggestedName, string extension);
     Task CopyTextAsync(string text);
     Task<string?> PromptAsync(string title, string placeholder, string initial, string okText);
     Task<bool> ConfirmAsync(string title, string message, string okText);
@@ -58,7 +60,14 @@ public sealed partial class MainViewModel : ObservableObject
         Equalizer = new EqualizerViewModel(engine, settings);
         Torrents = new TorrentsViewModel(this);
 
+        Track.TagsOnly = settings.StrictTags;
         foreach (var t in db.LoadAll()) AddTrackItem(new TrackItem(t));
+        foreach (var (path, (count, last)) in db.LoadPlayStats())
+            if (_byPath.TryGetValue(path, out var played))
+            {
+                played.PlayCount = count;
+                played.LastPlayedTicks = last;
+            }
         _images = db.LoadImages();
         _playlistData = db.LoadPlaylists();
         _likes = db.LoadLikes();
@@ -114,7 +123,7 @@ public sealed partial class MainViewModel : ObservableObject
         else CurrentPage = new HomePageViewModel(this);
     }
 
-    public string SettingsTip => IsSettingsActive ? "Закрыть настройки (Esc)" : "Настройки";
+    public string SettingsTip => IsSettingsActive ? L.T("Закрыть настройки (Esc)") : L.T("Настройки");
 
     // ---------- Папки медиатеки ----------
 
@@ -147,8 +156,8 @@ public sealed partial class MainViewModel : ObservableObject
         if (Dialogs == null) return;
         var prefix = folder.TrimEnd('\\') + "\\";
         var count = _library.Count(t => t.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-        var ok = await Dialogs.ConfirmAsync("Убрать папку из медиатеки?",
-            $"{folder}\n\nИз HaPlayer исчезнут треки из этой папки: {count}. Файлы на диске останутся на месте.", "Убрать");
+        var ok = await Dialogs.ConfirmAsync(L.T("Убрать папку из медиатеки?"),
+            L.F("{0}\n\nИз HaPlayer исчезнут треки из этой папки: {1}. Файлы на диске останутся на месте.", folder, count), "Убрать");
         if (!ok) return;
 
         _db.RemoveUnder(folder);
@@ -174,6 +183,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Перекрашивает интерфейс: ресурсы меняются сразу, а обложки «Любимых» и шапки пересоздаются.</summary>
     // ---------- Где хранить данные ----------
 
+    /// <summary>Окно меняет масштаб интерфейса. Задаёт MainWindow.</summary>
+    public Action<double>? ScaleChanged { get; set; }
+
     /// <summary>Перезапуск программы. Задаёт App: ему виден жизненный цикл окна.</summary>
     public Action? RestartRequested { get; set; }
 
@@ -185,13 +197,54 @@ public sealed partial class MainViewModel : ObservableObject
     private UpdateService.Release? _availableUpdate;
 
     public bool HasUpdate => AvailableUpdate != null;
-    public string UpdateText => AvailableUpdate == null ? "" : $"Версия {AvailableUpdate.Version}";
+    public string UpdateText => AvailableUpdate == null ? "" : L.F("Версия {0}", AvailableUpdate.Version);
 
     /// <summary>Проверка при запуске. Только если пользователь её включил: без спроса в сеть не ходим.</summary>
     public async Task CheckUpdatesOnStartAsync()
     {
         if (Settings.CheckUpdates) AvailableUpdate = await UpdateService.CheckAsync();
     }
+
+    // ---------- Мини-плеер ----------
+
+    [ObservableProperty] private bool _isMiniPlayer;
+
+    /// <summary>App показывает мини-плеер и прячет большое окно, или наоборот.</summary>
+    public Action<bool>? MiniPlayerChanged { get; set; }
+
+    partial void OnIsMiniPlayerChanged(bool value) => MiniPlayerChanged?.Invoke(value);
+
+    [RelayCommand]
+    private void ToggleMiniPlayer() => IsMiniPlayer = !IsMiniPlayer;
+
+    // ---------- Глобальные горячие клавиши ----------
+
+    private HaPlayer.Ui.GlobalHotkeys? _hotkeys;
+
+    public bool GlobalHotkeysActive => _hotkeys != null;
+
+    /// <summary>Включает или выключает клавиши, которые работают при свёрнутом окне.</summary>
+    public void SetGlobalHotkeys(bool on)
+    {
+        _hotkeys?.Dispose();
+        _hotkeys = on ? new HaPlayer.Ui.GlobalHotkeys(OnGlobalHotkey) : null;
+        OnPropertyChanged(nameof(GlobalHotkeysActive));
+    }
+
+    private void OnGlobalHotkey(HaPlayer.Ui.GlobalHotkeys.Key key)
+    {
+        switch (key)
+        {
+            case HaPlayer.Ui.GlobalHotkeys.Key.PlayPause: Player.PlayPause(); break;
+            case HaPlayer.Ui.GlobalHotkeys.Key.Next: Player.Next(); break;
+            case HaPlayer.Ui.GlobalHotkeys.Key.Previous: Player.Previous(); break;
+            case HaPlayer.Ui.GlobalHotkeys.Key.Stop: Player.Stop(); break;
+            case HaPlayer.Ui.GlobalHotkeys.Key.VolumeUp: Player.ChangeVolume(5); break;
+            case HaPlayer.Ui.GlobalHotkeys.Key.VolumeDown: Player.ChangeVolume(-5); break;
+        }
+    }
+
+    public void DisposeHotkeys() => _hotkeys?.Dispose();
 
     /// <summary>Настоящий выход из программы (минуя сворачивание в трей). Задаёт App.</summary>
     public Action? ExitRequested { get; set; }
@@ -207,24 +260,24 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (!UpdateService.CanSelfUpdate(r))
         {
-            var open = await Dialogs.ConfirmAsync($"Доступна версия {r.Version}",
-                "Обновить автоматически не получится: нет записи в папку программы. Открыть страницу релиза?", "Открыть");
+            var open = await Dialogs.ConfirmAsync(L.F("Доступна версия {0}", r.Version),
+                L.T("Обновить автоматически не получится: нет записи в папку программы. Открыть страницу релиза?"), L.T("Открыть"));
             if (open) OpenUrl(r.Url);
             return;
         }
 
-        var mb = r.Size > 0 ? $" Скачается {r.Size / 1048576.0:0} МБ." : "";
-        var ok = await Dialogs.ConfirmAsync($"Обновить до {r.Version}?",
-            $"HaPlayer скачает новую версию с GitHub и перезапустится.{mb} Медиатека и настройки останутся.", "Обновить");
+        var mb = r.Size > 0 ? L.F(" Скачается {0:0} МБ.", r.Size / 1048576.0) : "";
+        var ok = await Dialogs.ConfirmAsync(L.F("Обновить до {0}?", r.Version),
+            L.F("HaPlayer скачает новую версию с GitHub и перезапустится.{0} Медиатека и настройки останутся.", mb), "Обновить");
         if (!ok) return;
 
         IsBusy = true;
-        BusyText = "Скачиваю обновление…";
+        BusyText = L.T("Скачиваю обновление…");
         try
         {
-            var progress = new Progress<double>(p => BusyText = $"Скачиваю обновление: {p:0}%");
+            var progress = new Progress<double>(p => BusyText = L.F("Скачиваю обновление: {0:0}%", p));
             var file = await UpdateService.DownloadAsync(r, progress);
-            BusyText = "Устанавливаю…";
+            BusyText = L.T("Устанавливаю…");
             SaveSession();
             Settings.Save();
             UpdateService.ApplyAndRestart(file, () => ExitRequested?.Invoke());
@@ -232,7 +285,7 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception e)
         {
             IsBusy = false;
-            var open = await Dialogs.ConfirmAsync("Обновить не получилось", $"{e.Message}\n\nОткрыть страницу релиза и скачать вручную?", "Открыть");
+            var open = await Dialogs.ConfirmAsync(L.T("Обновить не получилось"), L.F("{0}\n\nОткрыть страницу релиза и скачать вручную?", e.Message), "Открыть");
             if (open) OpenUrl(r.Url);
         }
     }
@@ -269,7 +322,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (mode == AppPaths.Mode && string.Equals(Path.GetFullPath(target).TrimEnd('\\'), Path.GetFullPath(current).TrimEnd('\\'),
                 StringComparison.OrdinalIgnoreCase))
         {
-            await Dialogs.MessageAsync("Данные уже здесь", target);
+            await Dialogs.MessageAsync(L.T("Данные уже здесь"), target);
             return;
         }
 
@@ -283,16 +336,16 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch
         {
-            await Dialogs.MessageAsync("Нет доступа к папке",
-                $"В папку {target} нельзя записывать.\n\nЕсли программа лежит в Program Files, для портативного режима переместите её, например, на рабочий стол или флешку.");
+            await Dialogs.MessageAsync(L.T("Нет доступа к папке"),
+                L.F("В папку {0} нельзя записывать.\n\nЕсли программа лежит в Program Files, для портативного режима переместите её, например, на рабочий стол или флешку.", target));
             return;
         }
 
         var targetDb = Path.Combine(target, "library.db");
         if (File.Exists(targetDb))
         {
-            var useExisting = await Dialogs.ConfirmAsync("Здесь уже есть данные HaPlayer",
-                $"{target}\n\nОткрыть их? Текущая медиатека не перенесётся и останется на старом месте.", "Открыть их");
+            var useExisting = await Dialogs.ConfirmAsync(L.T("Здесь уже есть данные HaPlayer"),
+                L.F("{0}\n\nОткрыть их? Текущая медиатека не перенесётся и останется на старом месте.", target), "Открыть их");
             if (!useExisting)
             {
                 if (mode == DataMode.Portable && AppPaths.Mode != DataMode.Portable) File.Delete(AppPaths.PortableMarker);
@@ -301,9 +354,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
         else
         {
-            var ok = await Dialogs.ConfirmAsync("Перенести данные?",
-                $"Медиатека, плейлисты, любимые треки, фото и настройки будут скопированы сюда:\n{target}\n\nСтарая копия останется на месте. HaPlayer перезапустится.",
-                "Перенести");
+            var ok = await Dialogs.ConfirmAsync(L.T("Перенести данные?"),
+                L.F("Медиатека, плейлисты, любимые треки, фото и настройки будут скопированы сюда:\n{0}\n\nСтарая копия останется на месте. HaPlayer перезапустится.", target),
+                L.T("Перенести"));
             if (!ok)
             {
                 if (mode == DataMode.Portable && AppPaths.Mode != DataMode.Portable) File.Delete(AppPaths.PortableMarker);
@@ -312,7 +365,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             SaveSession();
             IsBusy = true;
-            BusyText = "Переношу данные…";
+            BusyText = L.T("Переношу данные…");
             try
             {
                 var oldImages = Path.Combine(current, "images");
@@ -333,7 +386,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 IsBusy = false;
                 if (mode == DataMode.Portable && AppPaths.Mode != DataMode.Portable) File.Delete(AppPaths.PortableMarker);
-                await Dialogs.MessageAsync("Не получилось перенести данные", e.Message);
+                await Dialogs.MessageAsync(L.T("Не получилось перенести данные"), e.Message);
                 return;
             }
             IsBusy = false;
@@ -391,6 +444,8 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CanGoBack));
 
         // Очередь собираем заново из путей. Файлы, которых больше нет в медиатеке, пропускаем.
+        // Если пользователь отключил восстановление, плеер стартует с пустой очередью.
+        if (!Settings.RestoreQueue) return;
         var saved = Settings.LastQueue;
         if (saved.Count == 0 || Settings.LastIndex < 0 || Settings.LastIndex >= saved.Count) return;
         var current = saved[Settings.LastIndex];
@@ -399,7 +454,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (index < 0) return;
 
         // Если очередь совпадает со списком на открытой странице, берём тот же список:
-        // тогда кнопка «играть» на странице сработает как пауза, а не начнёт сначала.
+        // тогда кнопка «играть» на странице поставит паузу и не начнёт трек заново.
         IReadOnlyList<TrackItem> list = queue;
         if (CurrentPage is CollectionPageViewModel c && c.Item.Tracks.SequenceEqual(queue)) list = c.Item.Tracks;
         else if (Library.SequenceEqual(queue)) list = Library;
@@ -418,15 +473,174 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Строки таблицы для списка треков. Общая фабрика, чтобы у всех страниц одинаково работали кнопки строки.</summary>
     public List<TrackRow> MakeRows(IReadOnlyList<TrackItem> list, string? queueTitle, Func<TrackItem, int, string> number,
-        Func<TrackItem, string> secondary, bool showCover) =>
-        list.Select((t, i) => new TrackRow(i, number(t, i), t, secondary(t), showCover,
+        Func<TrackItem, string> secondary, bool showCover)
+    {
+        var options = new TrackRowOptions(Settings.CompactList, Settings.ShowTechInfo, Settings.ShowPlayCount);
+        return list.Select((t, i) => new TrackRow(i, number(t, i), t, secondary(t), showCover,
             play: () => Player.PlayList(list, i, queueTitle),
             toggle: () =>
             {
                 if (t.IsCurrent) Player.PlayPause();
                 else Player.PlayList(list, i, queueTitle);
             },
-            like: () => ToggleLike([t]))).ToList();
+            like: () => ToggleLike([t]), options)).ToList();
+    }
+
+    /// <summary>Формат, частота и битрейт видны и в «Сейчас играет», если включены в настройках.</summary>
+    public bool ShowTechInfo => Settings.ShowTechInfo;
+
+    /// <summary>Настройки вида списка поменялись: пересобираем открытую страницу.</summary>
+    public void ApplyListOptions()
+    {
+        OnPropertyChanged(nameof(ShowTechInfo));
+        if (CurrentPage is not SettingsPageViewModel) RefreshPage();
+        if (Settings.ShowTechInfo) _ = FillTechInfoAsync();
+    }
+
+    /// <summary>Строгий режим включили или выключили: альбомы и исполнители собираются заново.</summary>
+    public void ApplyStrictTags()
+    {
+        Track.TagsOnly = Settings.StrictTags;
+        foreach (var t in _library) t.Refresh();
+        Rebuild();
+        if (CurrentPage is not SettingsPageViewModel) RefreshPage();
+    }
+
+    // ---------- Сведения о файле ----------
+
+    /// <summary>Окно со сведениями о файле трека. Файл только читается.</summary>
+    public async Task ShowFileInfoAsync(TrackItem t)
+    {
+        if (Dialogs == null) return;
+        var m = t.Model;
+        if (m.SampleRate == 0 && File.Exists(t.Path) && await Task.Run(() => TagReader.ReadTechOnly(m)))
+        {
+            _db.UpdateTech([m]);
+            t.Refresh();
+        }
+
+        long size = 0;
+        try { size = new FileInfo(t.Path).Length; } catch { /* файла нет: размер не показываем */ }
+
+        var lines = new List<string>
+        {
+            t.Path,
+            "",
+            L.F("Формат: {0}", t.TechText),
+            L.F("Длительность: {0}", t.DurationText),
+        };
+        if (size > 0) lines.Add(L.F("Размер: {0:0.0} МБ", size / 1048576.0));
+        if (m.Year > 0) lines.Add(L.F("Год: {0}", m.Year));
+        if (!string.IsNullOrEmpty(t.AddedText)) lines.Add(L.F("Добавлен: {0}", t.AddedText));
+        if (t.PlayCount > 0) lines.Add(L.F("Прослушан: {0}", L.Plural(t.PlayCount, "раз", "раза", "раз", "time", "times")));
+        if (t.IsMissing) lines.Add(L.T("Файл не найден"));
+        await Dialogs.MessageAsync(t.Title, string.Join("\n", lines));
+    }
+
+    // ---------- Подборки ----------
+
+    private const int SmartLimit = 100;
+
+    /// <summary>Подборки собираются заново при каждом обращении: они дешёвые и всегда свежие.</summary>
+    public List<SmartItem> SmartPlaylists
+    {
+        get
+        {
+            var monthAgo = DateTime.UtcNow.AddDays(-30).Ticks;
+            var recent = _library.OrderByDescending(t => t.Model.AddedTicks).Take(SmartLimit).ToList();
+            var top = _library.Where(t => t.PlayCount > 0)
+                .OrderByDescending(t => t.PlayCount).ThenByDescending(t => t.LastPlayedTicks).Take(SmartLimit).ToList();
+            var forgotten = _library.Where(t => t.PlayCount > 0 && t.LastPlayedTicks < monthAgo)
+                .OrderByDescending(t => t.PlayCount).Take(SmartLimit).ToList();
+            return
+            [
+                new SmartItem("recent", L.T("Новое в медиатеке"), L.T("Последние 100 треков"), recent, Covers, Open, Play),
+                new SmartItem("top", L.T("Часто слушаю"), L.T("По истории прослушивания"), top, Covers, Open, Play),
+                new SmartItem("forgotten", L.T("Давно не слушал"), L.T("Слушали раньше, но не в последний месяц"), forgotten, Covers, Open, Play),
+            ];
+        }
+    }
+
+    // ---------- Экспорт плейлиста ----------
+
+    /// <summary>Сохраняет список треков в .m3u8 (UTF-8, полные пути): его откроют Winamp, AIMP, foobar2000 и VLC.</summary>
+    public async Task ExportM3uAsync(CollectionItem item)
+    {
+        if (Dialogs == null || item.Tracks.Count == 0) return;
+        var file = await Dialogs.PickSaveFileAsync(item.Name, ".m3u8");
+        if (file == null) return;
+        try
+        {
+            var sb = new System.Text.StringBuilder("#EXTM3U\n");
+            foreach (var t in item.Tracks)
+            {
+                sb.Append("#EXTINF:").Append((int)Math.Round(t.Model.DurationSeconds)).Append(',')
+                  .Append(t.Artist).Append(" - ").Append(t.Title).Append('\n');
+                sb.Append(t.Path).Append('\n');
+            }
+            await File.WriteAllTextAsync(file, sb.ToString(), new System.Text.UTF8Encoding(false));
+        }
+        catch (Exception e)
+        {
+            await Dialogs.MessageAsync(L.T("Не получилось сохранить"), e.Message);
+        }
+    }
+
+    // ---------- Проверка файлов ----------
+
+    private bool _checkingFiles;
+
+    /// <summary>
+    /// Отмечает треки, файлов которых нет на месте (отключён диск, файл удалён или переименован),
+    /// и дочитывает техданные, если они включены. Идёт в фоне после показа окна и после проверки папок.
+    /// </summary>
+    public async Task CheckFilesAsync()
+    {
+        if (_checkingFiles) return;
+        _checkingFiles = true;
+        try
+        {
+            var paths = _library.Select(t => t.Path).ToList();
+            var missing = await Task.Run(() => paths.Where(p => !File.Exists(p)).ToHashSet(StringComparer.OrdinalIgnoreCase));
+            foreach (var t in _library) t.IsMissing = missing.Contains(t.Path);
+            OnPropertyChanged(nameof(MissingCount));
+        }
+        finally
+        {
+            _checkingFiles = false;
+        }
+        if (Settings.ShowTechInfo) await FillTechInfoAsync();
+    }
+
+    public int MissingCount => _library.Count(t => t.IsMissing);
+
+    private bool _fillingTech;
+
+    /// <summary>Битрейт, частота и каналы для треков, добавленных до 1.6. Файлы только читаются.</summary>
+    private async Task FillTechInfoAsync()
+    {
+        if (_fillingTech) return;
+        var todo = _library.Where(t => t.Model.SampleRate == 0 && !t.IsMissing).Select(t => t.Model).ToList();
+        if (todo.Count == 0) return;
+        _fillingTech = true;
+        try
+        {
+            var done = await Task.Run(() =>
+            {
+                var ok = new List<Track>();
+                foreach (var m in todo)
+                    if (TagReader.ReadTechOnly(m)) ok.Add(m);
+                _db.UpdateTech(ok);
+                return ok.Count;
+            });
+            if (done > 0) Player.CurrentTrack?.Refresh();
+            if (done > 0 && CurrentPage is not SettingsPageViewModel) RefreshPage();
+        }
+        finally
+        {
+            _fillingTech = false;
+        }
+    }
 
     /// <summary>Все треки в порядке добавления.</summary>
     public IReadOnlyList<TrackItem> Library => _library;
@@ -489,7 +703,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LibrarySortText))]
     private bool _sortAlphabetical;
 
-    public string LibrarySortText => SortAlphabetical ? "По алфавиту" : "Недавние";
+    public string LibrarySortText => SortAlphabetical ? L.T("По алфавиту") : L.T("Недавние");
 
     partial void OnSortAlphabeticalChanged(bool value)
     {
@@ -758,12 +972,12 @@ public sealed partial class MainViewModel : ObservableObject
     public bool HistoryEmpty => History.Count == 0;
 
     public string HistoryEmptyTitle => Settings.KeepHistory
-        ? "Здесь появится то, что вы слушали"
-        : "История прослушивания выключена";
+        ? L.T("Здесь появится то, что вы слушали")
+        : L.T("История прослушивания выключена");
 
     public string HistoryEmptyText => Settings.KeepHistory
-        ? "Сюда попадает всё, что звучало дольше 30 секунд. Хранится только на этом компьютере."
-        : "Включается в настройках, раздел «Данные».";
+        ? L.T("Сюда попадает всё, что звучало дольше 30 секунд. Хранится только на этом компьютере.")
+        : L.T("Включается в настройках, раздел «Данные».");
 
     private void LoadHistory()
     {
@@ -773,7 +987,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (!_byPath.TryGetValue(path, out var t)) continue;
             var when = new DateTime(ticks, DateTimeKind.Utc).ToLocalTime();
-            items.Add(new HistoryItem(t, when, () => Player.PlayList([t], 0, "История прослушивания")));
+            items.Add(new HistoryItem(t, when, () => Player.PlayList([t], 0, L.T("История прослушивания"))));
         }
         History = items;
         OnPropertyChanged(nameof(HistoryEmptyTitle));
@@ -790,6 +1004,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!Settings.KeepHistory) return;
         _db.AddHistory(track.Path);
+        track.PlayCount++;
+        track.LastPlayedTicks = DateTime.UtcNow.Ticks;
         if (IsHistoryPanelOpen) LoadHistory();
     }
 
@@ -797,8 +1013,8 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task ClearHistory()
     {
         if (Dialogs == null || !HasHistory) return;
-        var ok = await Dialogs.ConfirmAsync("Очистить историю?",
-            "Список прослушанных треков удалится с этого компьютера. Сами треки останутся в медиатеке.", "Очистить");
+        var ok = await Dialogs.ConfirmAsync(L.T("Очистить историю?"),
+            L.T("Список прослушанных треков удалится с этого компьютера. Сами треки останутся в медиатеке."), L.T("Очистить"));
         if (!ok) return;
         _db.ClearHistory();
         LoadHistory();
@@ -838,10 +1054,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (item is not (AlbumItem or ArtistItem)) return;
 
         var tracks = item.Tracks.ToList();
-        var ok = await Dialogs.ConfirmAsync($"Убрать {item.KindName} из медиатеки?",
-            $"«{item.Name}»: {Format.Tracks(tracks.Count)} исчезнут из HaPlayer, плейлистов и истории.\n\n" +
-            "Файлы на диске останутся на месте. При проверке папок они не вернутся. Чтобы вернуть, добавьте их снова через «Настройки → Добавить файлы».",
-            "Убрать");
+        var ok = await Dialogs.ConfirmAsync(L.F("Убрать {0} из медиатеки?", item.KindName),
+            L.F("«{0}»: {1} исчезнут из HaPlayer, плейлистов и истории.", item.Name, Format.Tracks(tracks.Count)) + "\n\n" +
+            L.T("Файлы на диске останутся на месте. При проверке папок они не вернутся. Чтобы вернуть, добавьте их снова через «Настройки → Добавить файлы»."),
+            L.T("Убрать"));
         if (!ok) return;
 
         var paths = tracks.Select(t => t.Path).ToList();
@@ -870,7 +1086,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Развёрнутая медиатека занимает и колонку страницы.</summary>
     public int LibrarySpan => IsLibraryExpanded ? 2 : 1;
 
-    public string LibraryExpandTip => IsLibraryExpanded ? "Свернуть медиатеку" : "Развернуть медиатеку";
+    public string LibraryExpandTip => IsLibraryExpanded ? L.T("Свернуть медиатеку") : L.T("Развернуть медиатеку");
 
     [RelayCommand]
     private void ToggleLibraryExpanded() => IsLibraryExpanded = !IsLibraryExpanded;
@@ -933,6 +1149,7 @@ public sealed partial class MainViewModel : ObservableObject
         "playlist" => Playlists.FirstOrDefault(p => p.Key == key),
         "liked" => Liked,
         "all" => _allTracks,
+        "smart" => SmartPlaylists.FirstOrDefault(s => s.Key == key),
         _ => null,
     };
 
@@ -1069,11 +1286,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (IsBusy) return [];
         IsBusy = true;
-        BusyText = "Ищу музыку…";
+        BusyText = L.T("Ищу музыку…");
         try
         {
             var known = _library.ToDictionary(t => t.Path, t => t.Model.ModifiedTicks, StringComparer.OrdinalIgnoreCase);
-            var progress = new Progress<(int Done, int Total)>(p => BusyText = $"Читаю теги: {p.Done} из {p.Total}");
+            var progress = new Progress<(int Done, int Total)>(p => BusyText = L.F("Читаю теги: {0} из {1}", p.Done, p.Total));
             var hidden = new HashSet<string>(_hidden, StringComparer.OrdinalIgnoreCase);
             var unhidden = new List<string>();
 
@@ -1122,6 +1339,7 @@ public sealed partial class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            if (rescan) _ = CheckFilesAsync();
         }
     }
 
@@ -1184,14 +1402,14 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task DownloadFromLinksAsync()
     {
         if (Dialogs == null || IsBusy) return;
-        const string title = "Скачать по ссылке";
-        var text = await Dialogs.PromptAsync(title, "https://…/песня.mp3 (можно несколько через пробел)", "", "Скачать");
+        var title = L.T("Скачать по ссылке");
+        var text = await Dialogs.PromptAsync(title, L.T("https://…/песня.mp3 (можно несколько через пробел)"), "", L.T("Скачать"));
         if (text == null) return;
 
         var links = LinkDownloader.ParseLinks(text);
         if (links.Count == 0)
         {
-            await Dialogs.MessageAsync(title, "Не вижу ссылки. Она должна начинаться с http:// или https://.");
+            await Dialogs.MessageAsync(title, L.T("Не вижу ссылки. Она должна начинаться с http:// или https://."));
             return;
         }
 
@@ -1204,10 +1422,10 @@ public sealed partial class MainViewModel : ObservableObject
             for (var i = 0; i < links.Count; i++)
             {
                 var link = links[i];
-                var n = links.Count > 1 ? $" {i + 1} из {links.Count}" : "";
-                BusyText = $"Скачиваю{n}…";
+                var n = links.Count > 1 ? L.F(" {0} из {1}", i + 1, links.Count) : "";
+                BusyText = L.F("Скачиваю{0}…", n);
                 var progress = new Progress<(long Done, long? Total)>(p =>
-                    BusyText = p.Total is > 0 ? $"Скачиваю{n}: {Mb(p.Done)} из {Mb(p.Total.Value)}" : $"Скачиваю{n}: {Mb(p.Done)}");
+                    BusyText = p.Total is > 0 ? L.F("Скачиваю{0}: {1} из {2}", n, Mb(p.Done), Mb(p.Total.Value)) : L.F("Скачиваю{0}: {1}", n, Mb(p.Done)));
                 using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
                 try
                 {
@@ -1219,11 +1437,11 @@ public sealed partial class MainViewModel : ObservableObject
                 }
                 catch (OperationCanceledException)
                 {
-                    errors.Add(Describe(link, "Скачивание шло дольше 15 минут и было остановлено."));
+                    errors.Add(Describe(link, L.T("Скачивание шло дольше 15 минут и было остановлено.")));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException)
                 {
-                    errors.Add(Describe(link, $"Не получилось: {ex.Message}"));
+                    errors.Add(Describe(link, L.F("Не получилось: {0}", ex.Message)));
                 }
             }
         }
@@ -1242,17 +1460,17 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (errors.Count > 0)
         {
-            var head = saved.Count > 0 ? $"Скачано: {saved.Count}. Не получилось: {errors.Count}.\n\n" : "";
+            var head = saved.Count > 0 ? L.F("Скачано: {0}. Не получилось: {1}.", saved.Count, errors.Count) + "\n\n" : "";
             await Dialogs.MessageAsync(title, head + string.Join("\n\n", errors));
         }
 
         if (tracks.Count > 0 &&
-            await Dialogs.ConfirmAsync("Готово", $"{Format.Tracks(tracks.Count)} в папке\n{folder}\n\nВключить сейчас?", "Включить"))
+            await Dialogs.ConfirmAsync(L.T("Готово"), L.F("{0} в папке\n{1}\n\nВключить сейчас?", Format.Tracks(tracks.Count), folder), "Включить"))
         {
-            Player.PlayList(tracks, 0, "Скачано по ссылке");
+            Player.PlayList(tracks, 0, L.T("Скачано по ссылке"));
         }
 
-        static string Mb(long bytes) => $"{bytes / 1048576.0:0.0} МБ";
+        static string Mb(long bytes) => L.F("{0:0.0} МБ", bytes / 1048576.0);
 
         static string Describe(Uri u, string message)
         {
@@ -1270,7 +1488,7 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task CreatePlaylistAsync(IReadOnlyList<TrackItem> tracks)
     {
         if (Dialogs == null) return;
-        var name = await Dialogs.PromptAsync("Новый плейлист", "Название", $"Мой плейлист № {Playlists.Count + 1}", "Создать");
+        var name = await Dialogs.PromptAsync(L.T("Новый плейлист"), L.T("Название"), L.F("Мой плейлист № {0}", Playlists.Count + 1), "Создать");
         if (name == null) return;
         var id = _db.CreatePlaylist(name);
         var data = new PlaylistData(id, name, tracks.Select(t => t.Path).ToList());
@@ -1289,9 +1507,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         var lists = new List<ImportedPlaylist>();
         var winamp = await Task.Run(PlaylistImporter.FindWinampPlaylists);
-        if (winamp.Count > 0 && await Dialogs.ConfirmAsync("Плейлисты Winamp",
-                $"В Winamp нашлось плейлистов: {winamp.Count}. Перенести их в HaPlayer?\n\nЕсли нужен другой плеер, нажмите «Отмена» и выберите файлы плейлистов.",
-                "Перенести"))
+        if (winamp.Count > 0 && await Dialogs.ConfirmAsync(L.T("Плейлисты Winamp"),
+                L.F("В Winamp нашлось плейлистов: {0}. Перенести их в HaPlayer?\n\nЕсли нужен другой плеер, нажмите «Отмена» и выберите файлы плейлистов.", winamp.Count),
+                L.T("Перенести")))
         {
             lists.AddRange(winamp);
         }
@@ -1305,7 +1523,7 @@ public sealed partial class MainViewModel : ObservableObject
         lists.RemoveAll(l => l.Paths.Count == 0);
         if (lists.Count == 0)
         {
-            await Dialogs.MessageAsync("Импорт плейлистов", "В выбранных файлах не нашлось песен с диска. Ссылки на интернет-радио пропускаются.");
+            await Dialogs.MessageAsync(L.T("Импорт плейлистов"), L.T("В выбранных файлах не нашлось песен с диска. Ссылки на интернет-радио пропускаются."));
             return;
         }
 
@@ -1338,9 +1556,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (firstId is { } fid && Find("playlist", fid.ToString()) is { } first) Open(first);
         else RefreshPage();
 
-        var text = $"Перенесено плейлистов: {created}.";
-        if (missing > 0) text += $"\nПесен не нашлось на диске: {missing}. Возможно, файлы перемещены или диск не подключён.";
-        await Dialogs.MessageAsync("Импорт плейлистов", text);
+        var text = L.F("Перенесено плейлистов: {0}.", created);
+        if (missing > 0) text += "\n" + L.F("Песен не нашлось на диске: {0}. Возможно, файлы перемещены или диск не подключён.", missing);
+        await Dialogs.MessageAsync(L.T("Импорт плейлистов"), text);
     }
 
     private string UniquePlaylistName(string name)
@@ -1375,7 +1593,7 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task RenamePlaylistAsync(PlaylistItem playlist)
     {
         if (Dialogs == null) return;
-        var name = await Dialogs.PromptAsync("Переименовать плейлист", "Название", playlist.Name, "Сохранить");
+        var name = await Dialogs.PromptAsync(L.T("Переименовать плейлист"), L.T("Название"), playlist.Name, L.T("Сохранить"));
         if (name == null || name == playlist.Name) return;
         _db.RenamePlaylist(playlist.Id, name);
         var i = _playlistData.FindIndex(p => p.Id == playlist.Id);
@@ -1387,8 +1605,8 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task DeletePlaylistAsync(PlaylistItem playlist)
     {
         if (Dialogs == null) return;
-        var ok = await Dialogs.ConfirmAsync("Удалить плейлист?",
-            $"Плейлист «{playlist.Name}» исчезнет из HaPlayer. Сами песни останутся в медиатеке и на диске.", "Удалить");
+        var ok = await Dialogs.ConfirmAsync(L.T("Удалить плейлист?"),
+            L.F("Плейлист «{0}» исчезнет из HaPlayer. Сами песни останутся в медиатеке и на диске.", playlist.Name), "Удалить");
         if (!ok) return;
         _db.DeletePlaylist(playlist.Id);
         _playlistData.RemoveAll(p => p.Id == playlist.Id);
@@ -1433,18 +1651,18 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task AddArtistFolderAsync()
     {
         if (Dialogs == null || IsBusy) return;
-        const string title = "Исполнитель из папки";
+        var title = L.T("Исполнитель из папки");
         var folder = await Dialogs.PickFolderAsync();
         if (folder == null) return;
 
-        var name = await Dialogs.PromptAsync(title, "Имя исполнителя", GuessArtistName(folder), "Добавить");
+        var name = await Dialogs.PromptAsync(title, L.T("Имя исполнителя"), GuessArtistName(folder), L.T("Добавить"));
         if (name == null) return;
 
         RememberFolder(folder);
         var tracks = await ImportAsync([folder], refreshPage: false);
         if (tracks.Count == 0)
         {
-            await Dialogs.MessageAsync(title, "В этой папке не нашлось музыки, которую умеет играть HaPlayer.");
+            await Dialogs.MessageAsync(title, L.T("В этой папке не нашлось музыки, которую умеет играть HaPlayer."));
             return;
         }
         AssignToArtist(name, tracks);
@@ -1465,14 +1683,14 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task AssignToNewAlbumAsync(IReadOnlyList<TrackItem> tracks)
     {
         if (Dialogs == null) return;
-        var name = await Dialogs.PromptAsync("Новый альбом", "Название альбома", "", "Создать");
+        var name = await Dialogs.PromptAsync(L.T("Новый альбом"), L.T("Название альбома"), "", L.T("Создать"));
         if (name != null) AssignToAlbum(Track.MakeAlbumKey(name, null), tracks);
     }
 
     public async Task AssignToNewArtistAsync(IReadOnlyList<TrackItem> tracks)
     {
         if (Dialogs == null) return;
-        var name = await Dialogs.PromptAsync("Новый исполнитель", "Имя исполнителя", "", "Готово");
+        var name = await Dialogs.PromptAsync(L.T("Новый исполнитель"), L.T("Имя исполнителя"), "", L.T("Готово"));
         if (name != null) AssignToArtist(name, tracks);
     }
 
@@ -1557,10 +1775,10 @@ public sealed partial class MainViewModel : ObservableObject
             var artists = tracks.Select(t => t.Artist).Distinct(StringComparer.OrdinalIgnoreCase).Count();
             var artist = first.UserAlbumKey == null && first.AlbumArtist != null
                 ? first.AlbumArtist
-                : artists == 1 ? tracks[0].Artist : "Разные исполнители";
+                : artists == 1 ? tracks[0].Artist : L.T("Разные исполнители");
             var year = tracks.Select(t => t.Model.Year).FirstOrDefault(y => y > 0);
 
-            var album = new AlbumItem(key, first.EffectiveAlbum, artist, year, tracks, Covers, Image("album", key), Open, Play);
+            var album = new AlbumItem(key, L.Data(first.EffectiveAlbum), L.Data(artist), year, tracks, Covers, Image("album", key), Open, Play);
             foreach (var t in tracks) t.Album = album;
             albums.Add(album);
         }

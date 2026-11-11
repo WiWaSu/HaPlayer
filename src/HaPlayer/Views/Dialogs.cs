@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -14,7 +15,7 @@ public static class Dialogs
         string? result = null;
         var dialog = Create(title);
         var ok = Button(okText, primary: true);
-        var cancel = Button("Отмена", primary: false);
+        var cancel = Button(L.T("Отмена"), primary: false);
         ok.IsDefault = true;
         cancel.IsCancel = true;
         ok.Click += (_, _) =>
@@ -39,7 +40,7 @@ public static class Dialogs
         var result = false;
         var dialog = Create(title);
         var ok = Button(okText, primary: true);
-        var cancel = Button("Отмена", primary: false);
+        var cancel = Button(L.T("Отмена"), primary: false);
         ok.IsDefault = true;
         cancel.IsCancel = true;
         ok.Click += (_, _) =>
@@ -56,7 +57,7 @@ public static class Dialogs
     public static async Task MessageAsync(Window owner, string title, string message)
     {
         var dialog = Create(title);
-        var ok = Button("Хорошо", primary: true);
+        var ok = Button(L.T("Хорошо"), primary: true);
         ok.IsDefault = true;
         ok.IsCancel = true;
         ok.Click += (_, _) => dialog.Close();
@@ -91,7 +92,7 @@ public static class Dialogs
         Text = message,
         TextWrapping = TextWrapping.Wrap,
         MaxWidth = 420,
-        Foreground = new SolidColorBrush(Color.Parse("#B3B3B3")),
+        Foreground = HaPlayer.Ui.ThemeService.Brush("SubBrush"),
         FontSize = 14,
         TextTrimming = TextTrimming.None,
     };
@@ -110,8 +111,8 @@ public static class Dialogs
         foreach (var b in buttons) row.Children.Add(b);
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#282828")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#1AFFFFFF")),
+            Background = HaPlayer.Ui.ThemeService.Brush("MenuBrush"),
+            BorderBrush = HaPlayer.Ui.ThemeService.Brush("Ov1A"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             MinWidth = 380,

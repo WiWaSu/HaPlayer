@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 
 namespace HaPlayer.Library;
 
@@ -15,6 +15,9 @@ public sealed class LibraryDb : IDisposable
 
     public LibraryDb(string file)
     {
+        // Журнал без самой базы остаётся от удалённой или перенесённой базы. Если его не убрать,
+        // SQLite наложит чужие страницы на новый файл и база окажется битой.
+        if (!File.Exists(file)) DeleteJournal(file);
         _conn = new SqliteConnection($"Data Source={file}");
         _conn.Open();
         Exec("""
@@ -72,6 +75,15 @@ public sealed class LibraryDb : IDisposable
         // Колонки, появившиеся позже первой версии базы.
         AddColumnIfMissing("tracks", "user_album_key", "TEXT");
         AddColumnIfMissing("tracks", "user_artist", "TEXT");
+        AddColumnIfMissing("tracks", "bitrate", "INTEGER NOT NULL DEFAULT 0");
+        AddColumnIfMissing("tracks", "sample_rate", "INTEGER NOT NULL DEFAULT 0");
+        AddColumnIfMissing("tracks", "channels", "INTEGER NOT NULL DEFAULT 0");
+    }
+
+    private static void DeleteJournal(string file)
+    {
+        foreach (var f in new[] { file + "-wal", file + "-shm", file + "-journal" })
+            try { if (File.Exists(f)) File.Delete(f); } catch { /* занят другим процессом: SQLite сам разберётся */ }
     }
 
     private void Exec(string sql)
@@ -98,7 +110,7 @@ public sealed class LibraryDb : IDisposable
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
                 SELECT path, title, artist, album, album_artist, track_no, disc_no, year, duration, mtime,
-                       user_album_key, user_artist, added
+                       user_album_key, user_artist, added, bitrate, sample_rate, channels
                 FROM tracks ORDER BY added, rowid
                 """;
             using var r = cmd.ExecuteReader();
@@ -120,6 +132,9 @@ public sealed class LibraryDb : IDisposable
                     UserAlbumKey = r.IsDBNull(10) ? null : r.GetString(10),
                     UserArtist = r.IsDBNull(11) ? null : r.GetString(11),
                     AddedTicks = r.GetInt64(12),
+                    Bitrate = r.GetInt32(13),
+                    SampleRate = r.GetInt32(14),
+                    Channels = r.GetInt32(15),
                 });
             }
             return list;
@@ -136,12 +151,15 @@ public sealed class LibraryDb : IDisposable
             using var cmd = _conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = """
-                INSERT INTO tracks (path, title, artist, album, album_artist, track_no, disc_no, year, duration, mtime, added)
-                VALUES ($path, $title, $artist, $album, $albumArtist, $trackNo, $discNo, $year, $duration, $mtime, $added)
+                INSERT INTO tracks (path, title, artist, album, album_artist, track_no, disc_no, year, duration, mtime, added,
+                                    bitrate, sample_rate, channels)
+                VALUES ($path, $title, $artist, $album, $albumArtist, $trackNo, $discNo, $year, $duration, $mtime, $added,
+                        $bitrate, $sampleRate, $channels)
                 ON CONFLICT(path) DO UPDATE SET
                     title = excluded.title, artist = excluded.artist, album = excluded.album,
                     album_artist = excluded.album_artist, track_no = excluded.track_no, disc_no = excluded.disc_no,
-                    year = excluded.year, duration = excluded.duration, mtime = excluded.mtime
+                    year = excluded.year, duration = excluded.duration, mtime = excluded.mtime,
+                    bitrate = excluded.bitrate, sample_rate = excluded.sample_rate, channels = excluded.channels
                 """;
             var pPath = cmd.Parameters.Add("$path", SqliteType.Text);
             var pTitle = cmd.Parameters.Add("$title", SqliteType.Text);
@@ -154,6 +172,9 @@ public sealed class LibraryDb : IDisposable
             var pDuration = cmd.Parameters.Add("$duration", SqliteType.Real);
             var pMtime = cmd.Parameters.Add("$mtime", SqliteType.Integer);
             var pAdded = cmd.Parameters.Add("$added", SqliteType.Integer);
+            var pBitrate = cmd.Parameters.Add("$bitrate", SqliteType.Integer);
+            var pSampleRate = cmd.Parameters.Add("$sampleRate", SqliteType.Integer);
+            var pChannels = cmd.Parameters.Add("$channels", SqliteType.Integer);
 
             var now = DateTime.UtcNow.Ticks;
             foreach (var t in tracks)
@@ -169,6 +190,9 @@ public sealed class LibraryDb : IDisposable
                 pDuration.Value = t.DurationSeconds;
                 pMtime.Value = t.ModifiedTicks;
                 pAdded.Value = now++;
+                pBitrate.Value = t.Bitrate;
+                pSampleRate.Value = t.SampleRate;
+                pChannels.Value = t.Channels;
                 cmd.ExecuteNonQuery();
             }
             tx.Commit();
@@ -382,6 +406,43 @@ public sealed class LibraryDb : IDisposable
         }
     }
 
+    /// <summary>Сколько раз слушали каждый трек и когда в последний раз (по истории).</summary>
+    public Dictionary<string, (int Count, long Last)> LoadPlayStats()
+    {
+        lock (_lock)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT path, COUNT(*), MAX(played_at) FROM history GROUP BY path";
+            using var r = cmd.ExecuteReader();
+            var map = new Dictionary<string, (int, long)>(StringComparer.OrdinalIgnoreCase);
+            while (r.Read()) map[r.GetString(0)] = (r.GetInt32(1), r.GetInt64(2));
+            return map;
+        }
+    }
+
+    /// <summary>Сохраняет битрейт, частоту и каналы, прочитанные позже основного сканирования.</summary>
+    public void UpdateTech(IReadOnlyCollection<Track> tracks)
+    {
+        if (tracks.Count == 0) return;
+        lock (_lock)
+        {
+            using var tx = _conn.BeginTransaction();
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE tracks SET bitrate = $b, sample_rate = $s, channels = $c WHERE path = $p";
+            var pb = cmd.Parameters.Add("$b", SqliteType.Integer);
+            var ps = cmd.Parameters.Add("$s", SqliteType.Integer);
+            var pc = cmd.Parameters.Add("$c", SqliteType.Integer);
+            var pp = cmd.Parameters.Add("$p", SqliteType.Text);
+            foreach (var t in tracks)
+            {
+                pb.Value = t.Bitrate; ps.Value = t.SampleRate; pc.Value = t.Channels; pp.Value = t.Path;
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+
     /// <summary>Последние прослушивания, новые сверху.</summary>
     public List<(string Path, long PlayedAt)> LoadHistory(int limit)
     {
@@ -483,6 +544,7 @@ public sealed class LibraryDb : IDisposable
     /// </summary>
     public void CopyTo(string file, string oldImagesDir, string newImagesDir)
     {
+        DeleteJournal(file);
         lock (_lock)
         {
             using var cmd = _conn.CreateCommand();

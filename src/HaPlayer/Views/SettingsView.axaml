@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
@@ -22,7 +22,7 @@
       <Setter Property="MinHeight" Value="40" />
     </Style>
     <Style Selector="Border.option">
-      <Setter Property="Background" Value="#0DFFFFFF" />
+      <Setter Property="Background" Value="{DynamicResource Ov0D}" />
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="Padding" Value="16,12" />
       <Setter Property="BorderThickness" Value="1" />
@@ -35,7 +35,7 @@
     <!-- Категории слева -->
     <Style Selector="Button.cat">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
       <Setter Property="FontSize" Value="15" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Padding" Value="14,10" />
@@ -44,12 +44,12 @@
       <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
     <Style Selector="Button.cat:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1AFFFFFF" />
-      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource Ov1A}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="Button.cat.active">
-      <Setter Property="Background" Value="#2A2A2A" />
-      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
     <Style Selector="Button.swatch">
@@ -62,7 +62,7 @@
       <Setter Property="Width" Value="118" />
     </Style>
     <Style Selector="Button.swatch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#14FFFFFF" />
+      <Setter Property="Background" Value="{DynamicResource Ov14}" />
     </Style>
     <Style Selector="Button.swatch.selected">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -74,26 +74,26 @@
 
   <DockPanel>
     <!-- Строка внизу вместо большого логотипа -->
-    <TextBlock DockPanel.Dock="Bottom" Text="{Binding FooterText}" FontSize="12" Foreground="#6A6A6A"
+    <TextBlock DockPanel.Dock="Bottom" Text="{Binding FooterText}" FontSize="12" Foreground="{DynamicResource MutedBrush}"
                Margin="32,8,32,16" />
 
     <Grid ColumnDefinitions="220,*">
       <!-- Категории -->
       <StackPanel Margin="20,32,8,0" Spacing="2">
-        <TextBlock Text="Настройки" FontSize="28" FontWeight="ExtraBold" Margin="14,0,0,18" />
-        <Button Classes="cat" Classes.active="{Binding IsLibraryCat}" Content="Медиатека"
+        <TextBlock Text="{ui:T 'Настройки'}" FontSize="28" FontWeight="ExtraBold" Margin="14,0,0,18" />
+        <Button Classes="cat" Classes.active="{Binding IsLibraryCat}" Content="{ui:T 'Медиатека'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="library" />
-        <Button Classes="cat" Classes.active="{Binding IsSoundCat}" Content="Звук"
+        <Button Classes="cat" Classes.active="{Binding IsSoundCat}" Content="{ui:T 'Звук'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="sound" />
-        <Button Classes="cat" Classes.active="{Binding IsLookCat}" Content="Оформление"
+        <Button Classes="cat" Classes.active="{Binding IsLookCat}" Content="{ui:T 'Оформление'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="look" />
-        <Button Classes="cat" Classes.active="{Binding IsDownloadsCat}" Content="Загрузки"
+        <Button Classes="cat" Classes.active="{Binding IsDownloadsCat}" Content="{ui:T 'Загрузки'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="downloads" />
-        <Button Classes="cat" Classes.active="{Binding IsDataCat}" Content="Данные"
+        <Button Classes="cat" Classes.active="{Binding IsDataCat}" Content="{ui:T 'Данные'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="data" />
-        <Button Classes="cat" Classes.active="{Binding IsKeysCat}" Content="Клавиши"
+        <Button Classes="cat" Classes.active="{Binding IsKeysCat}" Content="{ui:T 'Клавиши'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="keys" />
-        <Button Classes="cat" Classes.active="{Binding IsAppCat}" Content="Программа"
+        <Button Classes="cat" Classes.active="{Binding IsAppCat}" Content="{ui:T 'Программа'}"
                 Command="{Binding SelectCategoryCommand}" CommandParameter="app" />
       </StackPanel>
 
@@ -103,18 +103,18 @@
           <!-- ===== Медиатека ===== -->
           <StackPanel IsVisible="{Binding IsLibraryCat}">
             <StackPanel Classes="group">
-              <TextBlock Text="Папки с музыкой" Classes="title" />
+              <TextBlock Text="{ui:T 'Папки с музыкой'}" Classes="title" />
               <TextBlock Text="{Binding LibrarySummary}" Classes="sub" />
-              <TextBlock Text="Папок нет" Classes="sub" IsVisible="{Binding HasNoFolders}" />
+              <TextBlock Text="{ui:T 'Папок нет'}" Classes="sub" IsVisible="{Binding HasNoFolders}" />
               <ItemsControl ItemsSource="{Binding Folders}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FolderRow">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,4">
-                      <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="20" Height="20" Foreground="{StaticResource SubBrush}" />
+                      <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="20" Height="20" Foreground="{DynamicResource SubBrush}" />
                       <TextBlock Grid.Column="1" Text="{Binding Path}" Classes="label" Margin="12,0" />
                       <TextBlock Grid.Column="2" Text="{Binding Status}" Foreground="#FF6B6B" FontSize="12"
                                  VerticalAlignment="Center" Margin="0,0,12,0" />
-                      <Button Grid.Column="3" Classes="pill dark" Content="Убрать" Padding="14,6"
+                      <Button Grid.Column="3" Classes="pill dark" Content="{ui:T 'Убрать'}" Padding="14,6"
                               Command="{Binding RemoveCommand}" />
                     </Grid>
                   </DataTemplate>
@@ -124,47 +124,50 @@
                 <Button Classes="pill" Command="{Binding AddFolderCommand2}" Margin="0,0,10,10">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="16" Height="16" />
-                    <TextBlock Text="Добавить папку" />
+                    <TextBlock Text="{ui:T 'Добавить папку'}" />
                   </StackPanel>
                 </Button>
                 <Button Classes="pill dark" Command="{Binding Main.AddFilesCommand}" Margin="0,0,10,10">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Add}" Width="16" Height="16" />
-                    <TextBlock Text="Файлы" />
+                    <TextBlock Text="{ui:T 'Файлы'}" />
                   </StackPanel>
                 </Button>
                 <Button Classes="pill dark" Command="{Binding AddArtistFolderCommand}" Margin="0,0,10,10"
-                        ToolTip.Tip="Все песни из папки дискографии попадут к одному исполнителю, даже если в тегах написано по-разному. Файлы не меняются.">
+                        ToolTip.Tip="{ui:T 'Все песни из папки дискографии попадут к одному исполнителю, даже если в тегах написано по-разному. Файлы не меняются.'}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Person}" Width="16" Height="16" />
-                    <TextBlock Text="Папка дискографии" />
+                    <TextBlock Text="{ui:T 'Папка дискографии'}" />
                   </StackPanel>
                 </Button>
-                <Button Classes="pill dark" Content="Проверить сейчас" Command="{Binding RescanCommand}" Margin="0,0,10,10" />
+                <Button Classes="pill dark" Content="{ui:T 'Проверить сейчас'}" Command="{Binding RescanCommand}" Margin="0,0,10,10" />
               </WrapPanel>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Проверять папки при запуске" Classes="label" />
+                <TextBlock Text="{ui:T 'Проверять папки при запуске'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding RescanOnStart}" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Альбом и исполнитель только из тегов'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding StrictTags}" VerticalAlignment="Center"
+                              ToolTip.Tip="{ui:T 'Перенос треков в другой альбом и смена исполнителя отключаются'}" />
               </Grid>
             </StackPanel>
 
             <StackPanel Classes="group">
               <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="2">
-                  <TextBlock Text="Импорт плейлистов" Classes="title" />
-                  <TextBlock Text="Winamp, AIMP, VLC, Windows Media Player, iTunes" Classes="sub" TextWrapping="Wrap" />
-                </StackPanel>
-                <Button Grid.Column="1" Classes="pill" VerticalAlignment="Center" Command="{Binding ImportPlaylistsCommand}">
+                <TextBlock Text="{ui:T 'Импорт плейлистов'}" Classes="title" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="pill" VerticalAlignment="Center" Command="{Binding ImportPlaylistsCommand}"
+                        ToolTip.Tip="Winamp, AIMP, VLC, Windows Media Player, iTunes">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Import}" Width="16" Height="16" />
-                    <TextBlock Text="Импортировать" />
+                    <TextBlock Text="{ui:T 'Импортировать'}" />
                   </StackPanel>
                 </Button>
               </Grid>
             </StackPanel>
 
             <StackPanel Classes="group">
-              <TextBlock Text="Форматы" Classes="title" />
+              <TextBlock Text="{ui:T 'Форматы'}" Classes="title" />
               <ItemsControl ItemsSource="{Binding Formats}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
@@ -183,30 +186,30 @@
           <!-- ===== Звук ===== -->
           <StackPanel IsVisible="{Binding IsSoundCat}">
             <StackPanel Classes="group">
-              <TextBlock Text="Звук" Classes="title" />
+              <TextBlock Text="{ui:T 'Звук'}" Classes="title" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Устройство" Classes="label" />
+                <TextBlock Text="{ui:T 'Устройство'}" Classes="label" />
                 <Button Grid.Column="1" Classes="pill dark" Command="{Binding Main.ToggleDevicesPanelCommand}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Devices}" Width="16" Height="16" />
-                    <TextBlock Text="Выбрать" />
+                    <TextBlock Text="{ui:T 'Выбрать'}" />
                   </StackPanel>
                 </Button>
               </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Способ вывода" Classes="label" />
+                <TextBlock Text="{ui:T 'Способ вывода'}" Classes="label" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Outputs}" SelectedItem="{Binding SelectedOutput}"
                           MinWidth="300" VerticalAlignment="Center" />
               </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto,Auto">
-                <TextBlock Text="Буфер" Classes="label" ToolTip.Tip="Если звук заикается, увеличьте." />
+                <TextBlock Text="{ui:T 'Буфер'}" Classes="label" ToolTip.Tip="{ui:T 'Если звук заикается, увеличьте.'}" />
                 <Slider Grid.Column="1" Width="220" Minimum="30" Maximum="500" TickFrequency="10" IsSnapToTickEnabled="True"
                         Value="{Binding Latency}" />
                 <TextBlock Grid.Column="2" Text="{Binding LatencyText}" Classes="label" Width="64" TextAlignment="Right" />
               </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Эквалайзер" Classes="label" />
-                <Button Grid.Column="1" Classes="pill dark" Content="Открыть" Command="{Binding Main.ToggleEqualizerCommand}" />
+                <TextBlock Text="{ui:T 'Эквалайзер'}" Classes="label" />
+                <Button Grid.Column="1" Classes="pill dark" Content="{ui:T 'Открыть'}" Command="{Binding Main.ToggleEqualizerCommand}" />
               </Grid>
             </StackPanel>
           </StackPanel>
@@ -214,7 +217,7 @@
           <!-- ===== Оформление ===== -->
           <StackPanel IsVisible="{Binding IsLookCat}">
             <StackPanel Classes="group">
-              <TextBlock Text="Палитра" Classes="title" />
+              <TextBlock Text="{ui:T 'Палитра'}" Classes="title" />
               <ItemsControl ItemsSource="{Binding Palettes}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -226,7 +229,7 @@
                         <Panel HorizontalAlignment="Left">
                           <Ellipse Width="40" Height="40" Fill="{Binding Swatch}" />
                           <Ellipse Width="14" Height="14" Fill="{Binding Swatch2}" HorizontalAlignment="Right"
-                                   VerticalAlignment="Bottom" Margin="0,0,-4,-2" Stroke="#242424" StrokeThickness="2" />
+                                   VerticalAlignment="Bottom" Margin="0,0,-4,-2" Stroke="{DynamicResource InputBrush}" StrokeThickness="2" />
                         </Panel>
                         <TextBlock Text="{Binding Name}" FontSize="13" />
                       </StackPanel>
@@ -236,19 +239,19 @@
               </ItemsControl>
             </StackPanel>
             <StackPanel Classes="group">
-              <TextBlock Text="Свой цвет" Classes="title" />
+              <TextBlock Text="{ui:T 'Свой цвет'}" Classes="title" />
               <StackPanel Orientation="Horizontal" Spacing="12">
                 <Ellipse Width="40" Height="40" Fill="{Binding CustomPreview}" VerticalAlignment="Center" />
                 <TextBox Classes="inline" Width="140" Watermark="#FF2BD6" Text="{Binding CustomAccentText}"
                          VerticalAlignment="Center" />
-                <Button Classes="pill" Content="Применить" Command="{Binding ApplyCustomAccentCommand}"
+                <Button Classes="pill" Content="{ui:T 'Применить'}" Command="{Binding ApplyCustomAccentCommand}"
                         IsEnabled="{Binding CustomValid}" VerticalAlignment="Center" />
-                <Button Classes="pill dark" Content="Цвет палитры" Command="{Binding ResetCustomAccentCommand}"
+                <Button Classes="pill dark" Content="{ui:T 'Цвет палитры'}" Command="{Binding ResetCustomAccentCommand}"
                         IsVisible="{Binding HasCustomAccent}" VerticalAlignment="Center" />
               </StackPanel>
             </StackPanel>
             <StackPanel Classes="group">
-              <TextBlock Text="Фон" Classes="title" />
+              <TextBlock Text="{ui:T 'Фон'}" Classes="title" />
               <ItemsControl ItemsSource="{Binding Surfaces}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -258,7 +261,7 @@
                     <Button Classes="swatch" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}">
                       <StackPanel Spacing="8">
                         <Border Width="64" Height="40" CornerRadius="6" Background="{Binding Swatch2}" HorizontalAlignment="Left"
-                                BorderBrush="#33FFFFFF" BorderThickness="1">
+                                BorderBrush="{DynamicResource Ov33}" BorderThickness="1">
                           <Border Width="40" Height="24" CornerRadius="4" Background="{Binding Swatch}" />
                         </Border>
                         <TextBlock Text="{Binding Name}" FontSize="13" />
@@ -268,8 +271,41 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Цвет шапки по обложке" Classes="label" />
+                <TextBlock Text="{ui:T 'Цвет шапки по обложке'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding HeaderFromCover}" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+            <StackPanel Classes="group">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Язык'}" Classes="title" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}" SelectedIndex="{Binding LanguageIndex}"
+                          MinWidth="140" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Масштаб'}" Classes="label" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding ScaleOptions}" SelectedIndex="{Binding ScaleIndex}"
+                          MinWidth="140" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Шрифт'}" Classes="label" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding FontOptions}" SelectedIndex="{Binding FontIndex}"
+                          MinWidth="140" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+            <StackPanel Classes="group">
+              <TextBlock Text="{ui:T 'Список треков'}" Classes="title" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Компактный'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CompactList}" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Формат, частота, битрейт'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowTechInfo}" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Сколько раз слушал'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowPlayCount}" VerticalAlignment="Center"
+                              ToolTip.Tip="{ui:T 'Считается по истории прослушивания'}" />
               </Grid>
             </StackPanel>
           </StackPanel>
@@ -278,24 +314,24 @@
           <StackPanel IsVisible="{Binding IsDownloadsCat}">
             <StackPanel Classes="group">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="По ссылке" Classes="title" VerticalAlignment="Center" />
+                <TextBlock Text="{ui:T 'По ссылке'}" Classes="title" VerticalAlignment="Center" />
                 <Button Grid.Column="1" Classes="pill" VerticalAlignment="Center" Command="{Binding DownloadByLinkCommand}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Import}" Width="16" Height="16" />
-                    <TextBlock Text="Вставить ссылку" />
+                    <TextBlock Text="{ui:T 'Вставить ссылку'}" />
                   </StackPanel>
                 </Button>
               </Grid>
               <Grid ColumnDefinitions="Auto,*,Auto">
-                <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="20" Height="20" Foreground="{StaticResource SubBrush}" />
+                <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="20" Height="20" Foreground="{DynamicResource SubBrush}" />
                 <StackPanel Grid.Column="1" Margin="12,0">
-                  <TextBlock Text="Куда сохранять" Classes="label" />
+                  <TextBlock Text="{ui:T 'Куда сохранять'}" Classes="label" />
                   <TextBlock Text="{Binding DownloadFolder}" Classes="sub" FontSize="12" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                  <Button Classes="pill dark" Content="По умолчанию" Padding="14,6"
+                  <Button Classes="pill dark" Content="{ui:T 'По умолчанию'}" Padding="14,6"
                           IsVisible="{Binding IsCustomDownloadFolder}" Command="{Binding ResetDownloadFolderCommand}" />
-                  <Button Classes="pill dark" Content="Изменить" Padding="14,6"
+                  <Button Classes="pill dark" Content="{ui:T 'Изменить'}" Padding="14,6"
                           Command="{Binding ChangeDownloadFolderCommand}" />
                 </StackPanel>
               </Grid>
@@ -303,24 +339,22 @@
 
             <StackPanel Classes="group">
               <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="2" Margin="0,0,16,0">
-                  <TextBlock Text="Торренты" Classes="title" />
-                  <TextBlock Text="Пока включено, ваш IP-адрес видят участники раздачи." Classes="sub" TextWrapping="Wrap" />
-                </StackPanel>
-                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Main.Torrents.IsEnabled}" VerticalAlignment="Center" />
+                <TextBlock Text="{ui:T 'Торренты'}" Classes="title" VerticalAlignment="Center" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Main.Torrents.IsEnabled}" VerticalAlignment="Center"
+                              ToolTip.Tip="{ui:T 'Пока включено, ваш IP-адрес видят участники раздачи'}" />
               </Grid>
               <WrapPanel IsVisible="{Binding Main.Torrents.IsEnabled}">
                 <Button Classes="pill" Command="{Binding Main.Torrents.AddMagnetCommand}" Margin="0,0,10,10">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Import}" Width="16" Height="16" />
-                    <TextBlock Text="Magnet-ссылка" />
+                    <TextBlock Text="{ui:T 'Magnet-ссылка'}" />
                   </StackPanel>
                 </Button>
-                <Button Classes="pill dark" Content=".torrent-файл" Command="{Binding Main.Torrents.AddTorrentFileCommand}" Margin="0,0,10,10" />
+                <Button Classes="pill dark" Content="{ui:T '.torrent-файл'}" Command="{Binding Main.Torrents.AddTorrentFileCommand}" Margin="0,0,10,10" />
                 <Button Classes="pill dark" Command="{Binding Main.Torrents.ShareFolderCommand}" Margin="0,0,10,10">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="16" Height="16" />
-                    <TextBlock Text="Раздать папку" />
+                    <TextBlock Text="{ui:T 'Раздать папку'}" />
                   </StackPanel>
                 </Button>
               </WrapPanel>
@@ -336,9 +370,9 @@
                       </StackPanel>
                       <Button Grid.Column="1" Classes="pill dark" Content="{Binding CopyText}" Padding="14,6" Margin="12,0,0,0"
                               VerticalAlignment="Center" Command="{Binding CopyMagnetCommand}" />
-                      <Button Grid.Column="2" Classes="pill dark" Content="Папка" Padding="14,6" Margin="8,0,0,0"
+                      <Button Grid.Column="2" Classes="pill dark" Content="{ui:T 'Папка'}" Padding="14,6" Margin="8,0,0,0"
                               VerticalAlignment="Center" Command="{Binding OpenFolderCommand}" />
-                      <Button Grid.Column="3" Classes="pill dark" Content="Убрать" Padding="14,6" Margin="8,0,0,0"
+                      <Button Grid.Column="3" Classes="pill dark" Content="{ui:T 'Убрать'}" Padding="14,6" Margin="8,0,0,0"
                               VerticalAlignment="Center" Command="{Binding RemoveCommand}" />
                     </Grid>
                   </DataTemplate>
@@ -350,16 +384,15 @@
           <!-- ===== Данные ===== -->
           <StackPanel IsVisible="{Binding IsDataCat}">
             <StackPanel Classes="group">
-              <TextBlock Text="Где хранить медиатеку и настройки" Classes="title" />
+              <TextBlock Text="{ui:T 'Где хранить медиатеку и настройки'}" Classes="title" />
               <ItemsControl ItemsSource="{Binding DataModes}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:DataModeOption">
-                    <Border Classes="option" Classes.current="{Binding IsCurrent}" Margin="0,0,0,8">
+                    <Border Classes="option" Classes.current="{Binding IsCurrent}" Margin="0,0,0,8"
+                            ToolTip.Tip="{Binding Description}">
                       <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="2" Margin="0,0,16,0">
-                          <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
-                          <TextBlock Text="{Binding Description}" Classes="sub" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Margin="0,0,16,0" />
                         <Button Grid.Column="1" Classes="pill dark" Content="{Binding ButtonText}" VerticalAlignment="Center"
                                 IsEnabled="{Binding !IsCurrent}" Command="{Binding SelectCommand}" />
                       </Grid>
@@ -368,15 +401,15 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <Grid ColumnDefinitions="*,Auto">
-                <SelectableTextBlock Text="{Binding DataFolder}" FontSize="13" Foreground="{StaticResource SubBrush}"
+                <SelectableTextBlock Text="{Binding DataFolder}" FontSize="13" Foreground="{DynamicResource SubBrush}"
                                      VerticalAlignment="Center" />
-                <Button Grid.Column="1" Classes="pill dark" Content="Открыть папку" Command="{Binding OpenDataFolderCommand}" />
+                <Button Grid.Column="1" Classes="pill dark" Content="{ui:T 'Открыть папку'}" Command="{Binding OpenDataFolderCommand}" />
               </Grid>
             </StackPanel>
             <StackPanel Classes="group">
-              <TextBlock Text="История" Classes="title" />
+              <TextBlock Text="{ui:T 'История'}" Classes="title" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Вести историю прослушивания" Classes="label" />
+                <TextBlock Text="{ui:T 'Вести историю прослушивания'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepHistory}" VerticalAlignment="Center" />
               </Grid>
             </StackPanel>
@@ -385,27 +418,29 @@
           <!-- ===== Программа ===== -->
           <StackPanel IsVisible="{Binding IsAppCat}">
             <StackPanel Classes="group">
-              <TextBlock Text="Окно" Classes="title" />
+              <TextBlock Text="{ui:T 'Окно'}" Classes="title" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel>
-                  <TextBlock Text="Крестик сворачивает в трей" Classes="label" />
-                  <TextBlock Text="Выход — правой кнопкой по значку в трее." Classes="sub" />
-                </StackPanel>
-                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CloseToTray}" VerticalAlignment="Center" />
+                <TextBlock Text="{ui:T 'Крестик сворачивает в трей'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CloseToTray}" VerticalAlignment="Center"
+                              ToolTip.Tip="{ui:T 'Выход: правый клик по значку в трее'}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Открывать с прежней очередью'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding RestoreQueue}" VerticalAlignment="Center" />
               </Grid>
             </StackPanel>
             <StackPanel Classes="group" IsVisible="{Binding HasRepo}">
-              <TextBlock Text="Обновления" Classes="title" />
+              <TextBlock Text="{ui:T 'Обновления'}" Classes="title" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <TextBlock Text="Проверять при запуске" Classes="label" />
+                <TextBlock Text="{ui:T 'Проверять при запуске'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckUpdates}" VerticalAlignment="Center" />
               </Grid>
               <StackPanel Orientation="Horizontal" Spacing="12">
-                <Button Classes="pill dark" Content="Проверить сейчас" Command="{Binding CheckUpdatesNowCommand}" />
+                <Button Classes="pill dark" Content="{ui:T 'Проверить сейчас'}" Command="{Binding CheckUpdatesNowCommand}" />
                 <Button Classes="pill" IsVisible="{Binding Main.HasUpdate}" Command="{Binding Main.InstallUpdateCommand}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <ui:Glyph Data="{x:Static ui:Icons.Import}" Width="16" Height="16" />
-                    <TextBlock Text="Обновить" />
+                    <TextBlock Text="{ui:T 'Обновить'}" />
                   </StackPanel>
                 </Button>
                 <TextBlock Text="{Binding UpdateStatus}" Classes="sub" VerticalAlignment="Center" />
@@ -413,7 +448,7 @@
               <Button Classes="pill dark" HorizontalAlignment="Left" Command="{Binding OpenGitHubCommand}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <ui:Glyph Data="{x:Static ui:Icons.GitHub}" Width="16" Height="16" />
-                  <TextBlock Text="HaPlayer на GitHub" />
+                  <TextBlock Text="{ui:T 'HaPlayer на GitHub'}" />
                 </StackPanel>
               </Button>
             </StackPanel>
@@ -422,12 +457,30 @@
           <!-- ===== Клавиши ===== -->
           <StackPanel IsVisible="{Binding IsKeysCat}">
             <StackPanel Classes="group">
-              <TextBlock Text="Горячие клавиши" Classes="title" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Клавиши при свёрнутом окне'}" Classes="title" VerticalAlignment="Center" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding GlobalHotkeys}" VerticalAlignment="Center" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding GlobalHotkeyRows}" IsVisible="{Binding GlobalHotkeys}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:HotkeyRow">
+                    <Grid ColumnDefinitions="140,*" Margin="0,4">
+                      <Border Background="{DynamicResource Ov1F}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding Keys}" FontSize="12" FontWeight="SemiBold" />
+                      </Border>
+                      <TextBlock Grid.Column="1" Text="{Binding Action}" Classes="label" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel Classes="group">
+              <TextBlock Text="{ui:T 'Горячие клавиши'}" Classes="title" />
               <ItemsControl ItemsSource="{Binding Hotkeys}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:HotkeyRow">
                     <Grid ColumnDefinitions="140,*" Margin="0,4">
-                      <Border Background="#1FFFFFFF" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                      <Border Background="{DynamicResource Ov1F}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
                         <TextBlock Text="{Binding Keys}" FontSize="12" FontWeight="SemiBold" />
                       </Border>
                       <TextBlock Grid.Column="1" Text="{Binding Action}" Classes="label" />

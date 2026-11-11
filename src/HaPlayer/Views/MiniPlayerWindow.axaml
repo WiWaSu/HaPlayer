@@ -1,0 +1,47 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HaPlayer.ViewModels"
+        xmlns:ui="using:HaPlayer.Ui"
+        x:Class="HaPlayer.Views.MiniPlayerWindow"
+        x:DataType="vm:MainViewModel"
+        Title="HaPlayer"
+        Icon="avares://HaPlayer/Assets/haplayer.ico"
+        Width="400" Height="104" CanResize="False" Topmost="True" ShowInTaskbar="True"
+        SystemDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent">
+  <!-- Мини-плеер поверх всех окон. Перетаскивается за любое место. -->
+  <Border Background="{DynamicResource PanelBrush}" CornerRadius="10" BorderBrush="{DynamicResource Ov1A}" BorderThickness="1"
+          Padding="12">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+      <ui:CoverView Width="78" Height="78" Source="{Binding Player.CurrentTrack.Album.Thumb}" CornerRadius="6" />
+      <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center" Spacing="2">
+        <TextBlock Text="{Binding Player.CurrentTrack.Title}" FontSize="15" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Player.CurrentTrack.Artist}" FontSize="13" Foreground="{DynamicResource SubBrush}" />
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="-6,6,0,0">
+          <Button Classes="icon" Command="{Binding Player.PreviousCommand}">
+            <ui:Glyph Data="{x:Static ui:Icons.Prev}" Width="16" Height="16" />
+          </Button>
+          <Button Classes="play" Width="32" Height="32" CornerRadius="16" Command="{Binding Player.PlayPauseCommand}">
+            <ui:Glyph Data="{Binding Player.PlayIcon}" Width="15" Height="15" />
+          </Button>
+          <Button Classes="icon" Command="{Binding Player.NextCommand}">
+            <ui:Glyph Data="{x:Static ui:Icons.Next}" Width="16" Height="16" />
+          </Button>
+          <Button Classes="icon" Command="{Binding Player.ToggleLikeCommand}">
+            <Panel Width="16" Height="16">
+              <ui:Glyph Data="{x:Static ui:Icons.CirclePlus}" IsVisible="{Binding !Player.CurrentTrack.IsLiked}" />
+              <Panel IsVisible="{Binding Player.CurrentTrack.IsLiked}">
+                <ui:Glyph Data="{x:Static ui:Icons.CircleFill}" Foreground="{DynamicResource AccentBrush}" />
+                <ui:Glyph Data="{x:Static ui:Icons.Check}" Foreground="Black" StrokeThickness="3" />
+              </Panel>
+            </Panel>
+          </Button>
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Grid.Column="2" VerticalAlignment="Top" Spacing="2">
+        <Button Classes="icon" Command="{Binding ToggleMiniPlayerCommand}" ToolTip.Tip="{ui:T 'Большое окно'}">
+          <ui:Glyph Data="{x:Static ui:Icons.Expand}" Width="14" Height="14" />
+        </Button>
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

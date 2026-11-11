@@ -1,4 +1,4 @@
-namespace HaPlayer.Audio;
+﻿namespace HaPlayer.Audio;
 
 public enum DeviceKind
 {

@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using Avalonia.Controls;
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -13,6 +14,7 @@ public static class TrackMenu
 {
     public static void Attach(ListBox list)
     {
+        TrackDrag.AttachSource(list);
         list.AddHandler(InputElement.DoubleTappedEvent, (_, e) =>
         {
             if ((e.Source as Control)?.DataContext is TrackRow row) row.PlayCommand.Execute(null);
@@ -40,53 +42,57 @@ public static class TrackMenu
         var single = tracks.Count == 1;
         var items = new List<Control>();
 
-        if (single) items.Add(Item("Играть", () => clicked.PlayCommand.Execute(null)));
-        items.Add(Item("Играть следующим", () => main.Player.PlayNext(tracks)));
-        items.Add(Item("В очередь", () => main.Player.AddToQueue(tracks)));
+        if (single) items.Add(Item(L.T("Играть"), () => clicked.PlayCommand.Execute(null)));
+        items.Add(Item(L.T("Играть следующим"), () => main.Player.PlayNext(tracks)));
+        items.Add(Item(L.T("В очередь"), () => main.Player.AddToQueue(tracks)));
         items.Add(new Separator());
 
         var allLiked = tracks.All(t => t.IsLiked);
-        items.Add(Item(allLiked ? "Убрать из любимых" : "Добавить в любимые", () => main.ToggleLike(tracks)));
+        items.Add(Item(allLiked ? L.T("Убрать из любимых") : L.T("Добавить в любимые"), () => main.ToggleLike(tracks)));
 
         // Плейлисты
-        var toPlaylist = new MenuItem { Header = "Добавить в плейлист" };
-        toPlaylist.Items.Add(Item("Новый плейлист…", () => main.CreatePlaylistAsync(tracks)));
+        var toPlaylist = new MenuItem { Header = L.T("Добавить в плейлист") };
+        toPlaylist.Items.Add(Item(L.T("Новый плейлист…"), () => main.CreatePlaylistAsync(tracks)));
         if (main.Playlists.Count > 0) toPlaylist.Items.Add(new Separator());
         foreach (var p in main.Playlists.Where(p => p != page.Playlist))
             toPlaylist.Items.Add(Item(p.Name, () => main.AddToPlaylist(p, tracks)));
         items.Add(toPlaylist);
 
         if (page.Playlist is { } current)
-            items.Add(Item(single ? "Убрать из плейлиста" : $"Убрать из плейлиста ({tracks.Count})",
+            items.Add(Item(single ? L.T("Убрать из плейлиста") : L.F("Убрать из плейлиста ({0})", tracks.Count),
                 () => main.RemoveFromPlaylist(current, tracks)));
 
-        items.Add(new Separator());
-
         // Альбом и исполнитель. Меняется только привязка в HaPlayer, теги файлов остаются прежними.
-        var toAlbum = new MenuItem { Header = "Перенести в альбом" };
-        toAlbum.Items.Add(Item("Новый альбом…", () => main.AssignToNewAlbumAsync(tracks)));
-        toAlbum.Items.Add(new Separator());
-        foreach (var a in main.Albums)
-            toAlbum.Items.Add(Item(a.Name, () => main.AssignToAlbum(a.Key, tracks)));
-        items.Add(toAlbum);
+        // В строгом режиме этих пунктов нет: альбом и исполнитель берутся только из тегов.
+        if (!main.Settings.StrictTags)
+        {
+            items.Add(new Separator());
+            var toAlbum = new MenuItem { Header = L.T("Перенести в альбом") };
+            toAlbum.Items.Add(Item(L.T("Новый альбом…"), () => main.AssignToNewAlbumAsync(tracks)));
+            toAlbum.Items.Add(new Separator());
+            foreach (var a in main.Albums)
+                toAlbum.Items.Add(Item(a.Name, () => main.AssignToAlbum(a.Key, tracks)));
+            items.Add(toAlbum);
 
-        var toArtist = new MenuItem { Header = "Указать исполнителя" };
-        toArtist.Items.Add(Item("Новый исполнитель…", () => main.AssignToNewArtistAsync(tracks)));
-        toArtist.Items.Add(new Separator());
-        foreach (var a in main.Artists)
-            toArtist.Items.Add(Item(a.Name, () => main.AssignToArtist(a.Name, tracks)));
-        items.Add(toArtist);
+            var toArtist = new MenuItem { Header = L.T("Указать исполнителя") };
+            toArtist.Items.Add(Item(L.T("Новый исполнитель…"), () => main.AssignToNewArtistAsync(tracks)));
+            toArtist.Items.Add(new Separator());
+            foreach (var a in main.Artists)
+                toArtist.Items.Add(Item(a.Name, () => main.AssignToArtist(a.Name, tracks)));
+            items.Add(toArtist);
 
-        if (tracks.Any(t => t.Model.UserAlbumKey != null || t.Model.UserArtist != null))
-            items.Add(Item("Вернуть альбом и исполнителя из тегов", () => main.ResetAssignments(tracks)));
+            if (tracks.Any(t => t.Model.UserAlbumKey != null || t.Model.UserArtist != null))
+                items.Add(Item(L.T("Вернуть альбом и исполнителя из тегов"), () => main.ResetAssignments(tracks)));
+        }
 
         if (single)
         {
             items.Add(new Separator());
             var t = tracks[0];
-            if (t.Album is { } album) items.Add(Item("Перейти к альбому", () => main.Open(album)));
-            items.Add(Item("Перейти к исполнителю", () => main.OpenArtist(t.Artist)));
-            items.Add(Item("Показать в проводнике", () => ShowInExplorer(t.Path)));
+            if (t.Album is { } album) items.Add(Item(L.T("Перейти к альбому"), () => main.Open(album)));
+            items.Add(Item(L.T("Перейти к исполнителю"), () => main.OpenArtist(t.Artist)));
+            items.Add(Item(L.T("Показать в проводнике"), () => ShowInExplorer(t.Path)));
+            items.Add(Item(L.T("Сведения о файле"), () => main.ShowFileInfoAsync(t)));
         }
 
         return items;

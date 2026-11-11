@@ -1,4 +1,4 @@
-using Avalonia.Media;
+﻿using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -69,9 +69,9 @@ public sealed partial class PlayerViewModel : ObservableObject
     public Geometry RepeatIcon => Repeat == RepeatMode.One ? Icons.RepeatOne : Icons.Repeat;
     public string RepeatTip => Repeat switch
     {
-        RepeatMode.All => "Повтор очереди (R)",
-        RepeatMode.One => "Повтор трека (R)",
-        _ => "Повтор выключен (R)",
+        RepeatMode.All => L.T("Повтор очереди (R)"),
+        RepeatMode.One => L.T("Повтор трека (R)"),
+        _ => L.T("Повтор выключен (R)"),
     };
     public Geometry PlayIcon => IsPlaying ? Icons.Pause : Icons.Play;
     public Geometry VolumeIcon => IsMuted || Volume == 0 ? Icons.VolumeOff : Volume < 50 ? Icons.VolumeLow : Icons.Volume;

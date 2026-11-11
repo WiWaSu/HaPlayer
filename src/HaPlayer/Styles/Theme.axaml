@@ -1,7 +1,8 @@
-<Styles xmlns="https://github.com/avaloniaui"
+﻿<Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:HaPlayer.ViewModels"
-        xmlns:ui="using:HaPlayer.Ui">
+        xmlns:ui="using:HaPlayer.Ui"
+        xmlns:v="using:HaPlayer.Views">
 
   <Styles.Resources>
     <!-- Палитра бренда (assets/branding): чёрный, неоновый пурпурный, кислотно-жёлтый. -->
@@ -90,7 +91,8 @@
 
     <!-- Строка таблицы треков. Общая для всех списков: «Все треки», поиск, альбом, исполнитель, плейлист. -->
     <DataTemplate x:Key="TrackRowTemplate" x:DataType="vm:TrackRow">
-      <Grid ColumnDefinitions="40,5*,3*,120,120" Height="56" Background="Transparent">
+      <Grid ColumnDefinitions="40,5*,3*,120,120" Height="{Binding RowHeight}" Background="Transparent"
+            Classes.missing="{Binding Item.IsMissing}">
         <!-- Номер. При наведении вместо него кнопка «играть», у играющего трека полоски эквалайзера. -->
         <Panel Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Center" Width="24">
           <TextBlock Classes="num" Classes.current="{Binding Item.IsCurrent}" HorizontalAlignment="Right"
@@ -109,24 +111,34 @@
           </Button>
         </Panel>
 
-        <Grid Grid.Column="1" ColumnDefinitions="Auto,*" Margin="16,0,8,0" VerticalAlignment="Center">
+        <Grid Grid.Column="1" Classes="coltitle" ColumnDefinitions="Auto,*" Margin="16,0,8,0" VerticalAlignment="Center">
           <ui:CoverView Width="40" Height="40" Margin="0,0,12,0"
                         Source="{Binding Item.Album.Thumb}" IsVisible="{Binding ShowCover}" />
-          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-            <TextBlock Classes="rowtitle" Classes.current="{Binding Item.IsCurrent}" Text="{Binding Item.Title}" />
-            <TextBlock Classes="rowsub" Text="{Binding Item.Artist}" />
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="{Binding LineSpacing}">
+            <Grid ColumnDefinitions="Auto,*">
+              <!-- Файла нет на месте: диск отключён, файл удалён или переименован -->
+              <ui:Glyph Data="{x:Static ui:Icons.Warning}" Width="14" Height="14" Margin="0,0,6,0"
+                        Foreground="{DynamicResource HighlightBrush}" IsVisible="{Binding Item.IsMissing}"
+                        ToolTip.Tip="{ui:T 'Файл не найден'}" />
+              <TextBlock Grid.Column="1" Classes="rowtitle" Classes.small="{Binding Compact}"
+                         Classes.current="{Binding Item.IsCurrent}" Text="{Binding Item.Title}" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="rowsub" Text="{Binding Item.Artist}" />
+              <TextBlock Grid.Column="1" Classes="rowextra" Text="{Binding Extra}" IsVisible="{Binding HasExtra}" />
+            </Grid>
           </StackPanel>
         </Grid>
 
-        <TextBlock Grid.Column="2" Classes="rowsub" VerticalAlignment="Center" Margin="0,0,12,0"
+        <TextBlock Grid.Column="2" Classes="rowsub colalbum" VerticalAlignment="Center" Margin="0,0,12,0"
                    Text="{Binding Secondary}" />
-        <TextBlock Grid.Column="3" Classes="rowsub" VerticalAlignment="Center" Margin="0,0,12,0"
+        <TextBlock Grid.Column="3" Classes="rowsub coldate" VerticalAlignment="Center" Margin="0,0,12,0"
                    Text="{Binding Item.AddedText}" />
 
         <!-- Как у Spotify: в любимых закрашенный кружок с галочкой, иначе кружок с плюсом при наведении -->
         <Grid Grid.Column="4" ColumnDefinitions="*,Auto" VerticalAlignment="Center" Margin="0,0,16,0">
           <Button Classes="heart" Classes.liked="{Binding Item.IsLiked}" Command="{Binding LikeCommand}"
-                  HorizontalAlignment="Right" Margin="0,0,18,0" ToolTip.Tip="Любимые треки (L)">
+                  HorizontalAlignment="Right" Margin="0,0,18,0" ToolTip.Tip="{ui:T 'Любимые треки (L)'}">
             <Panel Width="17" Height="17">
               <ui:Glyph Data="{x:Static ui:Icons.CirclePlus}" IsVisible="{Binding !Item.IsLiked}" />
               <Panel IsVisible="{Binding Item.IsLiked}">
@@ -147,7 +159,7 @@
     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
   </Style>
   <Style Selector="TextBlock.sub">
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="FontSize" Value="14" />
   </Style>
   <Style Selector="TextBlock.hero">
@@ -162,15 +174,79 @@
     <Setter Property="LetterSpacing" Value="-0.4" />
   </Style>
   <Style Selector="TextBlock.num">
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="FontSize" Value="16" />
   </Style>
   <Style Selector="TextBlock.rowtitle">
     <Setter Property="FontSize" Value="16" />
   </Style>
   <Style Selector="TextBlock.rowsub">
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="TextBlock.rowtitle.small">
+    <Setter Property="FontSize" Value="14" />
+  </Style>
+  <Style Selector="TextBlock.rowextra">
+    <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Margin" Value="12,0,0,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- Куда упадут перетаскиваемые треки -->
+  <Style Selector="ListBoxItem.dragtarget /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <Style Selector="ListBoxItem.dragtarget TextBlock">
+    <Setter Property="Foreground" Value="Black" />
+  </Style>
+  <Style Selector="v|QueuePanelView.dragtarget Border.panel">
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <!-- ===== Ширина окна (классы narrow и tiny ставит MainWindow) ===== -->
+  <Style Selector=":is(Window).narrow TextBlock.coldate">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector=":is(Window).narrow TextBlock.colalbum">
+    <Setter Property="Grid.ColumnSpan" Value="2" />
+  </Style>
+  <Style Selector=":is(Window).tiny TextBlock.colalbum">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector=":is(Window).tiny Grid.coltitle, :is(Window).tiny TextBlock.coltitle">
+    <Setter Property="Grid.ColumnSpan" Value="3" />
+  </Style>
+  <Style Selector="TextBlock.noalbum">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector=":is(Window).narrow Slider.vol">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector=":is(Window).tiny Border.npqueue">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector=":is(Window).medium UniformGrid.quick">
+    <Setter Property="Columns" Value="2" />
+  </Style>
+  <Style Selector=":is(Window).narrow TextBlock.hero">
+    <Setter Property="FontSize" Value="52" />
+    <Setter Property="LetterSpacing" Value="-1.5" />
+  </Style>
+  <Style Selector=":is(Window).tiny TextBlock.hero">
+    <Setter Property="FontSize" Value="36" />
+    <Setter Property="LetterSpacing" Value="-0.8" />
+  </Style>
+  <!-- Сжатая медиатека: только обложки, название во всплывающей подсказке -->
+  <Style Selector="v|SidebarView.compact Grid.libhead, v|SidebarView.compact StackPanel.libchips, v|SidebarView.compact Grid.libtools, v|SidebarView.compact StackPanel.libtext">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="v|SidebarView.compact ListBox.library">
+    <Setter Property="Margin" Value="4,8,4,8" />
+  </Style>
+
+  <Style Selector="Grid.missing">
+    <Setter Property="Opacity" Value="0.5" />
   </Style>
   <Style Selector="TextBlock.current">
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
@@ -229,7 +305,7 @@
   <!-- Круглая кнопка-иконка: перемешать, повтор, назад, вперёд, громкость -->
   <Style Selector="Button.icon">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
@@ -247,15 +323,15 @@
   </Style>
   <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.icon:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
   </Style>
   <Style Selector="Button.icon:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="#4D4D4D" />
+    <Setter Property="Foreground" Value="{DynamicResource LineBrush}" />
   </Style>
   <Style Selector="Button.icon.on">
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
@@ -268,16 +344,16 @@
     <Setter Property="Padding" Value="0,0,0,2" />
   </Style>
   <Style Selector="Button.icon.hoverbg:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
   </Style>
   <!-- Круглая кнопка с подложкой: «+» у медиатеки, «…» на страницах -->
   <Style Selector="Button.icon.round">
-    <Setter Property="Background" Value="#1FFFFFFF" />
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Background" Value="{DynamicResource Ov1F}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
   </Style>
   <Style Selector="Button.icon.round:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#33FFFFFF" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource Ov33}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.icon.ghost /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
@@ -290,8 +366,8 @@
 
   <!-- Белая круглая кнопка «играть» в нижней панели -->
   <Style Selector="Button.play">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
     <Setter Property="Width" Value="34" />
     <Setter Property="Height" Value="34" />
     <Setter Property="Padding" Value="0" />
@@ -308,12 +384,12 @@
     <Setter Property="RenderTransform" Value="scale(1.07)" />
   </Style>
   <Style Selector="Button.play:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
   <Style Selector="Button.play:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#DDDDDD" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InversePressedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
   <Style Selector="Button.play.big">
     <Setter Property="Width" Value="64" />
@@ -384,10 +460,10 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Button.rowplay">
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.heart">
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
   </Style>
   <Style Selector="Button.heart.liked">
     <Setter Property="Opacity" Value="1" />
@@ -397,7 +473,7 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="Button.heart:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.heart.liked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
@@ -409,7 +485,7 @@
     <Setter Property="Opacity" Value="0" />
   </Style>
   <Style Selector="ListBoxItem:pointerover TextBlock.rowsub">
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Большое сердечко в нижней панели и на экране «Сейчас играет» -->
@@ -420,7 +496,7 @@
   <!-- Пункты навигации слева -->
   <Style Selector="Button.nav">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="FontSize" Value="15" />
     <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="Padding" Value="12,10" />
@@ -429,41 +505,41 @@
   </Style>
   <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.nav.active">
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Вкладки в боковой панели: Плейлисты / Альбомы / Исполнители -->
   <Style Selector="Button.chip">
-    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     <Setter Property="FontSize" Value="13" />
     <Setter Property="Padding" Value="11,6" />
     <Setter Property="CornerRadius" Value="16" />
   </Style>
   <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#3A3A3A" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource Raised2Brush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.chip.active">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
   <Style Selector="Button.chip.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
 
   <!-- Белая «таблетка» и прозрачная с рамкой -->
   <Style Selector="Button.pill">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
     <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="Padding" Value="20,9" />
     <Setter Property="CornerRadius" Value="20" />
@@ -477,19 +553,19 @@
     <Setter Property="RenderTransform" Value="scale(1.04)" />
   </Style>
   <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
   <Style Selector="Button.pill.ghost">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="White" />
-    <Setter Property="BorderBrush" Value="{StaticResource MutedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Button.pill.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="White" />
-    <Setter Property="BorderBrush" Value="White" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Карточка альбома или исполнителя -->
@@ -503,10 +579,10 @@
     <Setter Property="VerticalContentAlignment" Value="Top" />
   </Style>
   <Style Selector="Button.card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource ElevatedBrush}" />
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
   </Style>
   <Style Selector="Button.card:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
   </Style>
   <Style Selector="Button.card:pressed">
     <Setter Property="RenderTransform" Value="none" />
@@ -514,7 +590,7 @@
 
   <!-- Плитка быстрого доступа на главной -->
   <Style Selector="Button.quick">
-    <Setter Property="Background" Value="#14FFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov14}" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="Height" Value="64" />
     <Setter Property="Margin" Value="0,0,8,8" />
@@ -525,10 +601,10 @@
     <Setter Property="ClipToBounds" Value="True" />
   </Style>
   <Style Selector="Button.quick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#2EFFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov2E}" />
   </Style>
   <Style Selector="Button.quick:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#24FFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov24}" />
   </Style>
   <Style Selector="Button.quick:pressed">
     <Setter Property="RenderTransform" Value="none" />
@@ -566,19 +642,19 @@
     <Setter Property="CornerRadius" Value="4" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#1AFFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov1A}" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#26FFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov26}" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#33FFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov33}" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#40FFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov40}" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#40FFFFFF" />
+    <Setter Property="Background" Value="{DynamicResource Ov40}" />
   </Style>
 
   <!-- Поле поиска -->
@@ -603,11 +679,14 @@
   </Style>
 
   <!-- Значки на светлых и акцентных кнопках: чёрные, как у Spotify. PathIcon сам цвет кнопки не наследует. -->
-  <Style Selector="Button.primary ui|Glyph, Button.play ui|Glyph, Button.pill ui|Glyph, Button.chip.active ui|Glyph">
+  <Style Selector="Button.primary ui|Glyph">
     <Setter Property="Foreground" Value="Black" />
   </Style>
+  <Style Selector="Button.play ui|Glyph, Button.pill ui|Glyph, Button.chip.active ui|Glyph">
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
+  </Style>
   <Style Selector="Button.pill.ghost ui|Glyph">
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Меню и подсказки: скругления и отступы -->
@@ -644,8 +723,8 @@
     <Setter Property="Height" Value="48" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="24" />
-    <Setter Property="Background" Value="#1F1F1F" />
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Transitions">
@@ -663,23 +742,23 @@
     <Setter Property="RenderTransform" Value="scale(1.04)" />
   </Style>
   <Style Selector="Button.topround:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#2A2A2A" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.topround:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#1F1F1F" />
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
   </Style>
   <Style Selector="Button.topround.active">
-    <Setter Property="Background" Value="#333333" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RaisedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.topround.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#3E3E3E" />
+    <Setter Property="Background" Value="{DynamicResource Raised2Brush}" />
   </Style>
 
   <!-- «Назад» и «Вперёд» -->
   <Style Selector="Button.icon.nav:disabled /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="#4D4D4D" />
+    <Setter Property="Foreground" Value="{DynamicResource LineBrush}" />
   </Style>
 
   <!-- Поле поиска наверху: «Что хочешь включить?» -->
@@ -689,17 +768,17 @@
     <Setter Property="Padding" Value="50,0,20,0" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FontSize" Value="16" />
-    <Setter Property="Background" Value="#1F1F1F" />
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
     <Setter Property="BorderThickness" Value="2" />
     <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
   <Style Selector="TextBox.topsearch:pointerover /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="#2A2A2A" />
-    <Setter Property="BorderBrush" Value="#333333" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RaisedBrush}" />
   </Style>
   <Style Selector="TextBox.topsearch:focus /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="#2A2A2A" />
-    <Setter Property="BorderBrush" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Поиск внутри медиатеки -->
@@ -710,36 +789,36 @@
     <Setter Property="Padding" Value="10,0" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FontSize" Value="14" />
-    <Setter Property="Background" Value="#2A2A2A" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
   </Style>
 
   <!-- Тёмная таблетка: «+ Создать», «+ Добавить», «Название и сведения» -->
   <Style Selector="Button.pill.dark">
-    <Setter Property="Background" Value="#1F1F1F" />
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     <Setter Property="Padding" Value="16,8" />
     <Setter Property="FontSize" Value="14" />
   </Style>
   <Style Selector="Button.pill.dark:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#2A2A2A" />
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="Button.pill.dark ui|Glyph">
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Сортировка «Недавние» -->
   <Style Selector="Button.flat.sort">
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
     <Setter Property="Padding" Value="6,4" />
   </Style>
   <Style Selector="Button.flat.sort:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Чипы-фильтры -->
   <Style Selector="Button.chip">
-    <Setter Property="Background" Value="#2A2A2A" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
     <Setter Property="FontSize" Value="14" />
     <Setter Property="Padding" Value="12,6" />
   </Style>
@@ -751,20 +830,20 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Button.chip ui|Glyph">
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
 
   <!-- Строки медиатеки -->
   <Style Selector="TextBlock.libname">
     <Setter Property="FontSize" Value="16" />
-    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
   </Style>
   <Style Selector="TextBlock.libname.playing">
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
   </Style>
   <Style Selector="TextBlock.libsub">
     <Setter Property="FontSize" Value="14" />
-    <Setter Property="Foreground" Value="{StaticResource SubBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
   </Style>
   <Style Selector="ListBox.library ListBoxItem">
     <Setter Property="Padding" Value="8" />
@@ -780,25 +859,25 @@
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
   </Style>
   <Style Selector="Button.row:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#2A2A2A" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
   </Style>
   <Style Selector="Button.row:pressed">
     <Setter Property="RenderTransform" Value="none" />
   </Style>
   <!-- Включённый чип: белый. Стоит последним, потому что в Avalonia побеждает последний подходящий стиль. -->
   <Style Selector="Button.chip.active">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
   <Style Selector="Button.chip.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#F0F0F0" />
-    <Setter Property="Foreground" Value="Black" />
+    <Setter Property="Background" Value="{DynamicResource InverseHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource InverseTextBrush}" />
   </Style>
   <!-- Серые полоски-заглушки в пустой истории -->
   <Style Selector="Border.skel">
     <Setter Property="Height" Value="10" />
     <Setter Property="CornerRadius" Value="5" />
-    <Setter Property="Background" Value="#2A2A2A" />
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
     <Setter Property="HorizontalAlignment" Value="Left" />
   </Style>
 

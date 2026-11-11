@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
@@ -8,13 +8,13 @@
   <Border Classes="panel">
     <DockPanel>
       <!-- Заголовок и «Создать» -->
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="20,16,10,8">
-        <TextBlock Text="Моя медиатека" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+      <Grid DockPanel.Dock="Top" Classes="libhead" ColumnDefinitions="*,Auto,Auto" Margin="20,16,10,8">
+        <TextBlock Text="{ui:T 'Моя медиатека'}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
         <Button Grid.Column="1" Classes="pill dark" Command="{Binding CreatePlaylistCommand}"
-                ToolTip.Tip="Создать плейлист">
+                ToolTip.Tip="{ui:T 'Создать плейлист'}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <ui:Glyph Data="{x:Static ui:Icons.Add}" Width="16" Height="16" />
-            <TextBlock Text="Создать" />
+            <TextBlock Text="{ui:T 'Создать'}" />
           </StackPanel>
         </Button>
         <!-- Развернуть медиатеку на всё окно и свернуть обратно -->
@@ -28,29 +28,29 @@
       </Grid>
 
       <!-- Фильтры: включаются и выключаются повторным нажатием -->
-      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="14,8,10,4">
+      <StackPanel DockPanel.Dock="Top" Classes="libchips" Orientation="Horizontal" Spacing="6" Margin="14,8,10,4">
         <Button Classes="chip round" IsVisible="{Binding HasFilter}" Command="{Binding SelectTabCommand}"
-                CommandParameter="All" ToolTip.Tip="Сбросить фильтр">
+                CommandParameter="All" ToolTip.Tip="{ui:T 'Сбросить фильтр'}">
           <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="14" Height="14" />
         </Button>
-        <Button Classes="chip" Classes.active="{Binding IsPlaylistsTab}" Content="Плейлисты"
+        <Button Classes="chip" Classes.active="{Binding IsPlaylistsTab}" Content="{ui:T 'Плейлисты'}"
                 Command="{Binding SelectTabCommand}" CommandParameter="Playlists" />
-        <Button Classes="chip" Classes.active="{Binding IsAlbumsTab}" Content="Альбомы"
+        <Button Classes="chip" Classes.active="{Binding IsAlbumsTab}" Content="{ui:T 'Альбомы'}"
                 Command="{Binding SelectTabCommand}" CommandParameter="Albums" />
-        <Button Classes="chip" Classes.active="{Binding IsArtistsTab}" Content="Исполнители"
+        <Button Classes="chip" Classes.active="{Binding IsArtistsTab}" Content="{ui:T 'Исполнители'}"
                 Command="{Binding SelectTabCommand}" CommandParameter="Artists" />
       </StackPanel>
 
       <!-- Поиск по медиатеке и сортировка -->
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="12,6,12,4">
-        <Button Classes="icon hoverbg" Command="{Binding ToggleLibrarySearchCommand}" ToolTip.Tip="Искать в медиатеке">
+      <Grid DockPanel.Dock="Top" Classes="libtools" ColumnDefinitions="Auto,*,Auto" Margin="12,6,12,4">
+        <Button Classes="icon hoverbg" Command="{Binding ToggleLibrarySearchCommand}" ToolTip.Tip="{ui:T 'Искать в медиатеке'}">
           <ui:Glyph Data="{x:Static ui:Icons.Search}" Width="18" Height="18" />
         </Button>
         <TextBox x:Name="LibrarySearch" Grid.Column="1" Classes="inline" Margin="4,0,8,0"
-                 Watermark="Искать в медиатеке" Text="{Binding LibraryQuery}"
+                 Watermark="{ui:T 'Искать в медиатеке'}" Text="{Binding LibraryQuery}"
                  IsVisible="{Binding IsLibrarySearchOpen}" />
         <Button Grid.Column="2" Classes="flat sort" Command="{Binding ToggleLibrarySortCommand}"
-                ToolTip.Tip="Сортировка">
+                ToolTip.Tip="{ui:T 'Сортировка'}">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="{Binding LibrarySortText}" FontSize="14" VerticalAlignment="Center" />
             <ui:Glyph Data="{x:Static ui:Icons.Sort}" Width="16" Height="16" />
@@ -61,11 +61,11 @@
       <!-- Плейлисты, альбомы и исполнители одним списком -->
       <Panel>
         <Border IsVisible="{Binding HasNoAlbums}" VerticalAlignment="Top" Margin="12,8"
-                Background="{StaticResource ElevatedBrush}" CornerRadius="8" Padding="20,16">
+                Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="20,16">
           <StackPanel Spacing="8">
-            <TextBlock Text="Добавьте музыку" FontSize="16" FontWeight="Bold" />
-            <TextBlock Text="Выберите папку с треками или перетащите файлы в окно." Classes="sub" TextWrapping="Wrap" />
-            <Button Classes="pill" Content="Выбрать папку" Margin="0,8,0,0" Command="{Binding AddFolderCommand}" />
+            <TextBlock Text="{ui:T 'Добавьте музыку'}" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{ui:T 'Выберите папку с треками или перетащите файлы в окно.'}" Classes="sub" TextWrapping="Wrap" />
+            <Button Classes="pill" Content="{ui:T 'Выбрать папку'}" Margin="0,8,0,0" Command="{Binding AddFolderCommand}" />
           </StackPanel>
         </Border>
 
@@ -73,10 +73,10 @@
                  SelectedItem="{Binding SelectedLibraryItem, Mode=TwoWay}">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:CollectionItem">
-              <Grid ColumnDefinitions="48,*">
+              <Grid ColumnDefinitions="48,*" ToolTip.Tip="{Binding Name}" ToolTip.Placement="Right">
                 <ui:CoverView Width="48" Height="48" Source="{Binding Thumb}" Badge="{Binding Badge}"
                               CornerRadius="{Binding ListCornerRadius}" />
-                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="3">
+                <StackPanel Grid.Column="1" Classes="libtext" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="3">
                   <TextBlock Classes="libname" Classes.playing="{Binding IsNowPlaying}" Text="{Binding Name}" />
                   <StackPanel Orientation="Horizontal" Spacing="5">
                     <ui:Glyph Data="{x:Static ui:Icons.Pin}" Width="13" Height="13" StrokeThickness="2.4"

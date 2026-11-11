@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Reflection;
@@ -91,7 +92,7 @@ public static class UpdateService
     /// </summary>
     public static async Task<string> DownloadAsync(Release r, IProgress<double> progress, CancellationToken ct = default)
     {
-        var exe = Environment.ProcessPath ?? throw new InvalidOperationException("Не удалось узнать, где лежит HaPlayer.exe");
+        var exe = Environment.ProcessPath ?? throw new InvalidOperationException(L.T("Не удалось узнать, где лежит HaPlayer.exe"));
         var target = exe + ".update";
         if (File.Exists(target)) File.Delete(target);
 
@@ -121,7 +122,7 @@ public static class UpdateService
         if (r.Sha256 != null && !string.Equals(Convert.ToHexString(sha.Hash!), r.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             File.Delete(target);
-            throw new InvalidDataException("Скачанный файл не совпал с контрольной суммой на GitHub. Обновление не установлено.");
+            throw new InvalidDataException(L.T("Скачанный файл не совпал с контрольной суммой на GitHub. Обновление не установлено."));
         }
         return target;
     }

@@ -14,7 +14,7 @@ public sealed class FolderRow(string path, Func<string, Task> remove)
 {
     public string Path { get; } = path;
     public bool Exists { get; } = Directory.Exists(path);
-    public string Status => Exists ? "" : "папка не найдена";
+    public string Status => Exists ? "" : L.T("папка не найдена");
     public IAsyncRelayCommand RemoveCommand { get; } = new AsyncRelayCommand(() => remove(path));
 }
 
@@ -50,7 +50,7 @@ public sealed class DataModeOption(DataMode mode, string title, string descripti
     public string Title { get; } = title;
     public string Description { get; } = description;
     public bool IsCurrent { get; } = isCurrent;
-    public string ButtonText => IsCurrent ? "Сейчас" : Mode == DataMode.Custom ? "Выбрать папку" : "Перейти";
+    public string ButtonText => IsCurrent ? L.T("Сейчас") : Mode == DataMode.Custom ? L.T("Выбрать папку") : L.T("Перейти");
     public IAsyncRelayCommand SelectCommand { get; } = new AsyncRelayCommand(() => select(mode));
 }
 
@@ -127,10 +127,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     public bool IsCustomDownloadFolder => Main.IsCustomDownloadFolder;
 
     public string DownloadFolderHint => Main.IsCustomDownloadFolder
-        ? "Выбрана вручную"
+        ? L.T("Выбрана вручную")
         : Main.Settings.MusicFolders.Any(Directory.Exists)
-            ? "Ваша папка с музыкой"
-            : "Папок с музыкой пока нет, поэтому сюда";
+            ? L.T("Ваша папка с музыкой")
+            : L.T("Папок с музыкой пока нет, поэтому сюда");
 
     public IRelayCommand ResetDownloadFolderCommand { get; }
 
@@ -161,7 +161,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     private void SelectCategory(string category) => Category = category;
 
     /// <summary>Серая строка внизу настроек.</summary>
-    public string FooterText => $"HaPlayer {Version} · без телеметрии · лицензия не выбрана";
+    public string FooterText => L.F("HaPlayer {0} · без телеметрии · лицензия не выбрана", Version);
 
     // ---------- Свой акцентный цвет ----------
 
@@ -197,6 +197,122 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         Main.ApplyTheme();
     }
 
+    // ---------- Язык ----------
+
+    public List<string> Languages { get; } = ["English", "Русский"];
+
+    public int LanguageIndex
+    {
+        get => _s.Language == "ru" ? 1 : 0;
+        set
+        {
+            var lang = value == 1 ? "ru" : "en";
+            if (lang == _s.Language) return;
+            _s.Language = lang;
+            _s.Save();
+            OnPropertyChanged();
+            // Строки переводятся при создании окна, поэтому новый язык включается перезапуском.
+            Main.RestartRequested?.Invoke();
+        }
+    }
+
+    // ---------- Масштаб и шрифт ----------
+
+    private static readonly double[] Scales = [0.85, 1, 1.15, 1.3];
+
+    public List<string> ScaleOptions { get; } = [.. Scales.Select(s => $"{s * 100:0}%")];
+
+    public int ScaleIndex
+    {
+        get
+        {
+            var i = Array.FindIndex(Scales, s => Math.Abs(s - _s.UiScale) < 0.01);
+            return i < 0 ? 1 : i;
+        }
+        set
+        {
+            if (value < 0 || value >= Scales.Length) return;
+            _s.UiScale = Scales[value];
+            _s.Save();
+            OnPropertyChanged();
+            Main.ScaleChanged?.Invoke(_s.UiScale);
+        }
+    }
+
+    public List<string> FontOptions { get; } = [.. ThemeService.Fonts];
+
+    public int FontIndex
+    {
+        get
+        {
+            var i = FontOptions.IndexOf(_s.UiFont);
+            return i < 0 ? 0 : i;
+        }
+        set
+        {
+            if (value < 0 || value >= FontOptions.Count) return;
+            _s.UiFont = FontOptions[value];
+            _s.Save();
+            OnPropertyChanged();
+            ThemeService.ApplyFont(_s.UiFont);
+        }
+    }
+
+    // ---------- Опции 1.6 ----------
+
+    /// <summary>Сохраняет флаг настроек и сообщает разметке. after вызывается уже с новым значением.</summary>
+    private void SetFlag(bool value, Action<bool> set, Action? after = null, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        set(value);
+        _s.Save();
+        OnPropertyChanged(name);
+        after?.Invoke();
+    }
+
+    public bool CompactList
+    {
+        get => _s.CompactList;
+        set => SetFlag(value, v => _s.CompactList = v, Main.ApplyListOptions);
+    }
+
+    public bool ShowTechInfo
+    {
+        get => _s.ShowTechInfo;
+        set => SetFlag(value, v => _s.ShowTechInfo = v, Main.ApplyListOptions);
+    }
+
+    public bool ShowPlayCount
+    {
+        get => _s.ShowPlayCount;
+        set => SetFlag(value, v => _s.ShowPlayCount = v, Main.ApplyListOptions);
+    }
+
+    public bool StrictTags
+    {
+        get => _s.StrictTags;
+        set => SetFlag(value, v => _s.StrictTags = v, Main.ApplyStrictTags);
+    }
+
+    public bool RestoreQueue
+    {
+        get => _s.RestoreQueue;
+        set => SetFlag(value, v => _s.RestoreQueue = v);
+    }
+
+    public bool GlobalHotkeys
+    {
+        get => _s.GlobalHotkeys;
+        set => SetFlag(value, v => _s.GlobalHotkeys = v, () => Main.SetGlobalHotkeys(value));
+    }
+
+    public List<HotkeyRow> GlobalHotkeyRows { get; } =
+    [
+        new(L.T("Медиаклавиши"), L.T("Играть / пауза, трек назад / вперёд, стоп")),
+        new(L.T("Ctrl+Alt+Пробел"), L.T("Играть / пауза")),
+        new("Ctrl+Alt+← / →", L.T("Предыдущий / следующий трек")),
+        new("Ctrl+Alt+↑ / ↓", L.T("Громкость")),
+    ];
+
     // ---------- Окно и обновления ----------
 
     public bool CloseToTray
@@ -228,9 +344,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     [RelayCommand]
     private async Task CheckUpdatesNow()
     {
-        UpdateStatus = "Проверяю…";
+        UpdateStatus = L.T("Проверяю…");
         var release = await UpdateService.CheckAsync();
-        UpdateStatus = release == null ? $"У вас последняя версия ({Version})" : $"Есть версия {release.Version}";
+        UpdateStatus = release == null ? L.F("У вас последняя версия ({0})", Version) : L.F("Есть версия {0}", release.Version);
         Main.AvailableUpdate = release;
     }
 
@@ -253,7 +369,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     public ObservableCollection<FolderRow> Folders { get; } = [];
     public bool HasNoFolders => Folders.Count == 0;
-    public string LibrarySummary => $"В медиатеке {Format.Tracks(Main.Library.Count)}, альбомов: {Main.Albums.Count}, исполнителей: {Main.Artists.Count}.";
+    public string LibrarySummary => L.F("В медиатеке {0}, альбомов: {1}, исполнителей: {2}.", Format.Tracks(Main.Library.Count), Main.Albums.Count, Main.Artists.Count);
 
     public IAsyncRelayCommand AddFolderCommand2 { get; }
     public IAsyncRelayCommand RescanCommand { get; }
@@ -352,8 +468,8 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     public List<OutputOption> Outputs { get; } =
     [
-        new("wasapi", "WASAPI (рекомендуется)"),
-        new("waveout", "WaveOut (совместимость со старыми драйверами)"),
+        new("wasapi", L.T("WASAPI (рекомендуется)")),
+        new("waveout", L.T("WaveOut (совместимость со старыми драйверами)")),
     ];
 
     [ObservableProperty] private OutputOption _selectedOutput;
@@ -362,7 +478,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     [NotifyPropertyChangedFor(nameof(LatencyText))]
     private double _latency;
 
-    public string LatencyText => $"{Latency:0} мс";
+    public string LatencyText => L.F("{0:0} мс", Latency);
 
     partial void OnSelectedOutputChanged(OutputOption value)
     {
@@ -382,17 +498,17 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     public List<HotkeyRow> Hotkeys { get; } =
     [
-        new("Пробел", "Играть / пауза"),
-        new("Z / B", "Предыдущий / следующий трек"),
-        new("X / C / V", "Играть / пауза / стоп, как в Winamp"),
-        new("← / →", "Перемотка на 5 секунд"),
-        new("↑ / ↓", "Громкость"),
-        new("S / R", "Случайный порядок / повтор"),
-        new("L", "Добавить играющий трек в любимые"),
-        new("E", "Эквалайзер"),
-        new("Ctrl+F", "Поиск"),
-        new("Esc", "Закрыть «Сейчас играет», эквалайзер, настройки"),
-        new("Alt+← / Alt+→", "Назад / вперёд"),
+        new(L.T("Пробел"), L.T("Играть / пауза")),
+        new("Z / B", L.T("Предыдущий / следующий трек")),
+        new("X / C / V", L.T("Играть / пауза / стоп, как в Winamp")),
+        new("← / →", L.T("Перемотка на 5 секунд")),
+        new("↑ / ↓", L.T("Громкость")),
+        new("S / R", L.T("Случайный порядок / повтор")),
+        new("L", L.T("Добавить играющий трек в любимые")),
+        new("E", L.T("Эквалайзер")),
+        new("Ctrl+F", L.T("Поиск")),
+        new("Esc", L.T("Закрыть «Сейчас играет», эквалайзер, настройки")),
+        new("Alt+← / Alt+→", L.T("Назад / вперёд")),
     ];
 
     public string DataFolder => AppPaths.DataDirectory;
@@ -405,13 +521,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         Task Select(DataMode m) => Main.ChangeDataLocationAsync(m);
         return
         [
-            new(DataMode.AppData, "В профиле Windows",
+            new(DataMode.AppData, L.T("В профиле Windows"),
                 "%APPDATA%\\HaPlayer", mode == DataMode.AppData, Select),
-            new(DataMode.Portable, "Рядом с программой (портативно)",
-                "Папка «HaPlayer Data» возле HaPlayer.exe, можно носить на флешке",
+            new(DataMode.Portable, L.T("Рядом с программой (портативно)"),
+                L.T("Папка «HaPlayer Data» возле HaPlayer.exe, можно носить на флешке"),
                 mode == DataMode.Portable, Select),
-            new(DataMode.Custom, "В своей папке",
-                "Например, на диске с музыкой", mode == DataMode.Custom, Select),
+            new(DataMode.Custom, L.T("В своей папке"),
+                L.T("Например, на диске с музыкой"), mode == DataMode.Custom, Select),
         ];
     }
 

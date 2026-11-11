@@ -1,20 +1,46 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
              x:Class="HaPlayer.Views.NowPlayingView"
              x:DataType="vm:MainViewModel">
+  <!-- Экран всегда тёмный (цвет обложки уходит в чёрный), поэтому цвета текста и кнопок здесь свои, одинаковые в обеих темах -->
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="TextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SubBrush" Color="#B3B3B3" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#6A6A6A" />
+    <SolidColorBrush x:Key="SoftTextBrush" Color="#E6E6E6" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#33FFFFFF" />
+    <SolidColorBrush x:Key="ElevatedBrush" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="LineBrush" Color="#4DFFFFFF" />
+    <SolidColorBrush x:Key="InverseBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="InverseTextBrush" Color="#000000" />
+    <SolidColorBrush x:Key="InverseHoverBrush" Color="#F0F0F0" />
+    <SolidColorBrush x:Key="InversePressedBrush" Color="#DDDDDD" />
+    <SolidColorBrush x:Key="Ov1A" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="Ov1F" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="Ov26" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="Ov33" Color="#33FFFFFF" />
+    <SolidColorBrush x:Key="Ov40" Color="#40FFFFFF" />
+    <SolidColorBrush x:Key="SliderTrackFill" Color="#4DFFFFFF" />
+    <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#4DFFFFFF" />
+    <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#4DFFFFFF" />
+    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SliderThumbBackground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#FFFFFF" />
+  </UserControl.Resources>
   <!-- «Сейчас играет» на весь экран, как в мобильном приложении: большая обложка, управление и очередь -->
   <Border Background="{Binding NowPlayingBrush}">
     <Grid RowDefinitions="Auto,*" Margin="24,8,24,24">
 
       <!-- Верх: закрыть и откуда играет -->
       <Grid ColumnDefinitions="Auto,*,Auto">
-        <Button Classes="icon large hoverbg" Command="{Binding CloseNowPlayingCommand}" ToolTip.Tip="Свернуть (Esc)">
+        <Button Classes="icon large hoverbg" Command="{Binding CloseNowPlayingCommand}" ToolTip.Tip="{ui:T 'Свернуть (Esc)'}">
           <ui:Glyph Data="{x:Static ui:Icons.ChevronDown}" Width="30" Height="30" />
         </Button>
         <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
-          <TextBlock Text="ИГРАЕТ ИЗ" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.5"
+          <TextBlock Text="{ui:T 'ИГРАЕТ ИЗ'}" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.5"
                      Foreground="#B3FFFFFF" HorizontalAlignment="Center" />
           <TextBlock Text="{Binding Player.QueueTitle}" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
         </StackPanel>
@@ -34,18 +60,20 @@
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Spacing="4">
                 <Button Classes="flat" Command="{Binding OpenCurrentAlbumCommand}" HorizontalAlignment="Left"
-                        ToolTip.Tip="Открыть альбом">
+                        ToolTip.Tip="{ui:T 'Открыть альбом'}">
                   <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Title}" FontSize="28"
                              FontWeight="ExtraBold" LetterSpacing="-0.5" />
                 </Button>
                 <Button Classes="flat" Command="{Binding OpenCurrentArtistCommand}" HorizontalAlignment="Left"
-                        ToolTip.Tip="Открыть исполнителя">
+                        ToolTip.Tip="{ui:T 'Открыть исполнителя'}">
                   <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Artist}" FontSize="17"
                              Foreground="#C8FFFFFF" />
                 </Button>
+                <TextBlock Text="{Binding Player.CurrentTrack.TechText}" FontSize="13" Margin="0,6,0,0"
+                           Foreground="#99FFFFFF" IsVisible="{Binding ShowTechInfo}" />
               </StackPanel>
               <Button Grid.Column="1" Classes="icon large like" Classes.on="{Binding Player.CurrentTrack.IsLiked}"
-                      Command="{Binding Player.ToggleLikeCommand}" VerticalAlignment="Center" ToolTip.Tip="Любимые треки (L)">
+                      Command="{Binding Player.ToggleLikeCommand}" VerticalAlignment="Center" ToolTip.Tip="{ui:T 'Любимые треки (L)'}">
                 <Panel>
                   <ui:Glyph Data="{x:Static ui:Icons.Heart}" Width="28" Height="28" IsVisible="{Binding Player.CurrentTrack.IsLiked}" />
                   <ui:Glyph Data="{x:Static ui:Icons.HeartOutline}" Width="28" Height="28" IsVisible="{Binding !Player.CurrentTrack.IsLiked}" />
@@ -64,14 +92,14 @@
 
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,*">
               <Button Grid.Column="1" Classes="icon large" Classes.on="{Binding Player.Shuffle}"
-                      Command="{Binding Player.ToggleShuffleCommand}" ToolTip.Tip="Случайный порядок (S)">
+                      Command="{Binding Player.ToggleShuffleCommand}" ToolTip.Tip="{ui:T 'Случайный порядок (S)'}">
                 <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="24" Height="24" />
               </Button>
               <Button Grid.Column="2" Classes="icon large" Margin="16,0" Command="{Binding Player.PreviousCommand}">
                 <ui:Glyph Data="{x:Static ui:Icons.Prev}" Width="34" Height="34" />
               </Button>
               <Button Grid.Column="3" Classes="play big" Command="{Binding Player.PlayPauseCommand}">
-                <ui:Glyph Data="{Binding Player.PlayIcon}" Width="32" Height="32" Foreground="Black" />
+                <ui:Glyph Data="{Binding Player.PlayIcon}" Width="32" Height="32" Foreground="{DynamicResource InverseTextBrush}" />
               </Button>
               <Button Grid.Column="4" Classes="icon large" Margin="16,0" Command="{Binding Player.NextCommand}">
                 <ui:Glyph Data="{x:Static ui:Icons.Next}" Width="34" Height="34" />
@@ -88,7 +116,7 @@
               </Button>
               <Slider Width="160" Minimum="0" Maximum="100" Value="{Binding Player.Volume, Mode=TwoWay}" />
               <Button Classes="icon" Classes.on="{Binding Equalizer.Enabled}" Command="{Binding ToggleEqualizerCommand}"
-                      Margin="12,0,0,0" ToolTip.Tip="Эквалайзер (E)">
+                      Margin="12,0,0,0" ToolTip.Tip="{ui:T 'Эквалайзер (E)'}">
                 <ui:Glyph Data="{x:Static ui:Icons.Equalizer}" Width="20" Height="20" />
               </Button>
             </StackPanel>
@@ -96,11 +124,9 @@
         </Grid>
 
         <!-- Далее в очереди -->
-        <Border Grid.Column="1" Width="340" Background="#33000000" CornerRadius="12" Padding="8,16" Margin="16,0,0,0">
+        <Border Grid.Column="1" Classes="npqueue" Width="340" Background="#33000000" CornerRadius="12" Padding="8,16" Margin="16,0,0,0">
           <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="Далее в очереди" FontSize="16" FontWeight="Bold" Margin="12,0,12,12" />
-            <TextBlock DockPanel.Dock="Top" Text="Это последний трек в очереди." Classes="sub" Margin="12,0"
-                       IsVisible="{Binding IsQueueEnd}" />
+            <TextBlock DockPanel.Dock="Top" Text="{ui:T 'Далее в очереди'}" FontSize="16" FontWeight="Bold" Margin="12,0,12,12" />
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding UpNext}">
                 <ItemsControl.ItemTemplate>

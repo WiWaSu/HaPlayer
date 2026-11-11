@@ -24,18 +24,21 @@ public partial class App : Application
             var dataDir = AppPaths.DataDirectory;
             var db = new LibraryDb(Path.Combine(dataDir, "library.db"));
             var settings = Settings.Load(Path.Combine(dataDir, "settings.json"));
+            // Язык выбирается до создания любых окон и списков: строки переводятся при создании.
+            Ui.L.SetLanguage(settings.Language);
             var engine = new NAudioEngine { Output = settings.Output, LatencyMs = settings.LatencyMs };
             var covers = new CoverService();
 
             // Тема и форматы применяются до создания окна, чтобы оно сразу открылось в нужных цветах.
             Ui.ThemeService.Apply(settings.Palette, settings.Surface, settings.CustomAccent);
+            Ui.ThemeService.ApplyFont(settings.UiFont);
             AudioFormats.SetDisabled(settings.DisabledFormats);
 
             var vm = new MainViewModel(db, settings, engine, covers);
             vm.RestoreSession();
 
             var window = new MainWindow { DataContext = vm };
-            if (settings.WindowWidth >= 960 && settings.WindowHeight >= 620)
+            if (settings.WindowWidth >= 640 && settings.WindowHeight >= 480)
             {
                 window.Width = settings.WindowWidth;
                 window.Height = settings.WindowHeight;
@@ -59,6 +62,31 @@ public partial class App : Application
             var tray = new Ui.TrayController(this, desktop, window, vm);
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             vm.ExitRequested = tray.Exit;
+            if (settings.GlobalHotkeys) vm.SetGlobalHotkeys(true);
+
+            // Мини-плеер: маленькое окно поверх всех, большое прячется, пока он открыт.
+            MiniPlayerWindow? mini = null;
+            vm.MiniPlayerChanged = on =>
+            {
+                if (on)
+                {
+                    mini ??= new MiniPlayerWindow { DataContext = vm, CloseRequested = () => vm.IsMiniPlayer = false };
+                    mini.Show();
+                    window.Hide();
+                }
+                else
+                {
+                    mini?.Hide();
+                    window.Show();
+                    window.Activate();
+                }
+            };
+            desktop.Exit += (_, _) =>
+            {
+                if (mini == null) return;
+                mini.ReallyClose = true;
+                mini.Close();
+            };
             window.Closed += (_, _) => tray.Exit();
 
             vm.RestartRequested = () =>
@@ -73,6 +101,8 @@ public partial class App : Application
                 window.Opened += async (_, _) => await vm.RescanAsync();
 
             window.Opened += async (_, _) => await vm.CheckUpdatesOnStartAsync();
+            // Пропавшие файлы и техданные проверяются в фоне, окно уже открыто.
+            window.Opened += async (_, _) => await vm.CheckFilesAsync();
 
             // Торренты: если были включены, продолжаем раздачи после показа окна.
             if (settings.TorrentsEnabled)
@@ -80,6 +110,7 @@ public partial class App : Application
 
             desktop.Exit += (_, _) =>
             {
+                vm.DisposeHotkeys();
                 vm.Torrents.Shutdown();
                 settings.Save();
                 engine.Dispose();

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
@@ -10,7 +10,7 @@
       <StackPanel Margin="16" Spacing="16">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Text="{Binding Player.QueueTitle}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Classes="icon hoverbg" Command="{Binding ToggleQueuePanelCommand}" ToolTip.Tip="Закрыть">
+          <Button Grid.Column="1" Classes="icon hoverbg" Command="{Binding ToggleQueuePanelCommand}" ToolTip.Tip="{ui:T 'Закрыть'}">
             <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="16" Height="16" />
           </Button>
         </Grid>
@@ -27,11 +27,13 @@
             </Button>
             <Button Classes="flat" Command="{Binding OpenCurrentArtistCommand}" HorizontalAlignment="Left">
               <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Artist}" FontSize="15"
-                         Foreground="{StaticResource SubBrush}" />
+                         Foreground="{DynamicResource SubBrush}" />
             </Button>
+            <TextBlock Text="{Binding Player.CurrentTrack.TechText}" FontSize="12" Margin="0,4,0,0"
+                       Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding ShowTechInfo}" />
           </StackPanel>
           <Button Grid.Column="1" Classes="icon" Command="{Binding Player.ToggleLikeCommand}" VerticalAlignment="Center"
-                  ToolTip.Tip="Любимые треки (L)">
+                  ToolTip.Tip="{ui:T 'Любимые треки (L)'}">
             <Panel Width="22" Height="22">
               <ui:Glyph Data="{x:Static ui:Icons.CirclePlus}" IsVisible="{Binding !Player.CurrentTrack.IsLiked}" />
               <Panel IsVisible="{Binding Player.CurrentTrack.IsLiked}">
@@ -43,16 +45,15 @@
         </Grid>
 
         <!-- Далее в очереди -->
-        <Border Background="#1F1F1F" CornerRadius="8" Padding="12,14">
+        <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="12,14">
           <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="Далее в очереди" FontSize="16" FontWeight="Bold" />
+              <TextBlock Text="{ui:T 'Далее в очереди'}" FontSize="16" FontWeight="Bold" />
               <Button Grid.Column="1" Classes="flat" Command="{Binding ToggleNowPlayingCommand}">
-                <TextBlock Classes="link" Text="Открыть" FontSize="13" FontWeight="SemiBold"
-                           Foreground="{StaticResource SubBrush}" />
+                <TextBlock Classes="link" Text="{ui:T 'Открыть'}" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SubBrush}" />
               </Button>
             </Grid>
-            <TextBlock Text="Это последний трек в очереди." Classes="sub" IsVisible="{Binding IsQueueEnd}" />
             <ItemsControl ItemsSource="{Binding UpNextShort}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:UpNextItem">

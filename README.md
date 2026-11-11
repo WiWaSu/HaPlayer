@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="assets/branding/banner.png" alt="HaPlayer" width="800">
 </p>
 
@@ -20,7 +20,11 @@ The portable zip keeps all data next to the program.
 - Playlist import from Winamp, AIMP, VLC, Windows Media Player, iTunes.
 - Album and artist pages, search, full-window "Now playing".
 - 10-band equalizer, output device switching, listening history.
-- Tray icon, color palettes and your own accent color.
+- English and Russian interface. Dark, graphite and light themes, color palettes, your own accent color, interface scale and font.
+- Mini player on top of other windows, media keys that work while minimized, tray icon.
+- Mixes: new in library, on repeat, haven't heard in a while. Search filters by folder, year and format.
+- Drag tracks onto playlists and into the queue. Export any list to .m3u8.
+- The layout adapts to the window, down to 640×480.
 - Optional: download by direct link, torrents. Both off by default.
 
 HaPlayer never changes your files or their tags. Its data lives in `%APPDATA%\HaPlayer` (or next to the program in portable mode).

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
@@ -8,29 +8,29 @@
   <Border Classes="panel">
     <DockPanel Margin="16">
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
-        <TextBlock Text="Устройства" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Classes="icon hoverbg" Command="{Binding CloseRightPanelCommand}" ToolTip.Tip="Закрыть">
+        <TextBlock Text="{ui:T 'Устройства'}" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="icon hoverbg" Command="{Binding CloseRightPanelCommand}" ToolTip.Tip="{ui:T 'Закрыть'}">
           <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="16" Height="16" />
         </Button>
       </Grid>
 
       <Button DockPanel.Dock="Bottom" Classes="row" Command="{Binding OpenSoundSettingsCommand}" Margin="0,12,0,0">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="Устройства нет в списке?" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="{ui:T 'Устройства нет в списке?'}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
           <ui:Glyph Grid.Column="1" Data="{x:Static ui:Icons.Import}" Width="16" Height="16" RenderTransform="rotate(-90deg)"
-                    Foreground="{StaticResource SubBrush}" />
+                    Foreground="{DynamicResource SubBrush}" />
         </Grid>
       </Button>
 
       <ScrollViewer>
         <StackPanel Spacing="20">
           <!-- Текущее устройство -->
-          <Border Background="#1F1F1F" CornerRadius="8" Padding="16,14" IsVisible="{Binding CurrentDevice, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="16,14" IsVisible="{Binding CurrentDevice, Converter={x:Static ObjectConverters.IsNotNull}}">
             <Grid ColumnDefinitions="Auto,*">
               <ui:Glyph Data="{Binding CurrentDevice.Icon}" Width="24" Height="24" Foreground="{DynamicResource AccentBrush}"
                         VerticalAlignment="Center" />
               <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="2">
-                <TextBlock Text="Сейчас играет здесь" FontSize="12" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="{ui:T 'Сейчас играет здесь'}" FontSize="12" Foreground="{DynamicResource AccentBrush}" />
                 <TextBlock Text="{Binding CurrentDevice.Name}" FontSize="15" FontWeight="SemiBold"
                            Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding CurrentDevice.Subtitle}" Classes="sub" FontSize="13" />
@@ -40,13 +40,13 @@
 
           <!-- Другие устройства -->
           <StackPanel Spacing="4" IsVisible="{Binding HasOtherDevices}">
-            <TextBlock Text="Другие устройства" FontSize="16" FontWeight="Bold" Margin="4,0,0,6" />
+            <TextBlock Text="{ui:T 'Другие устройства'}" FontSize="16" FontWeight="Bold" Margin="4,0,0,6" />
             <ItemsControl ItemsSource="{Binding OtherDevices}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DeviceItem">
                   <Button Classes="row" Command="{Binding SelectCommand}" Padding="10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <ui:Glyph Data="{Binding Icon}" Width="24" Height="24" Foreground="{StaticResource SubBrush}"
+                      <ui:Glyph Data="{Binding Icon}" Width="24" Height="24" Foreground="{DynamicResource SubBrush}"
                                 VerticalAlignment="Center" />
                       <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="2">
                         <TextBlock Text="{Binding Name}" FontSize="15" TextWrapping="Wrap" />
@@ -61,26 +61,23 @@
 
           <!-- Других устройств нет: подсказки, как у Spotify -->
           <StackPanel Spacing="22" IsVisible="{Binding !HasOtherDevices}">
-            <TextBlock Text="Других устройств нет" FontSize="16" FontWeight="Bold" Margin="4,0,0,0" />
+            <TextBlock Text="{ui:T 'Других устройств нет'}" FontSize="16" FontWeight="Bold" Margin="4,0,0,0" />
             <Grid ColumnDefinitions="Auto,*" Margin="4,0,0,0">
-              <ui:Glyph Data="{x:Static ui:Icons.Headphones}" Width="26" Height="26" Foreground="{StaticResource SubBrush}" VerticalAlignment="Top" />
+              <ui:Glyph Data="{x:Static ui:Icons.Headphones}" Width="26" Height="26" Foreground="{DynamicResource SubBrush}" VerticalAlignment="Top" />
               <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="3">
-                <TextBlock Text="Подключите наушники или колонки" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock Text="Проводные и USB-устройства появятся здесь сразу." Classes="sub" TextWrapping="Wrap" />
+                <TextBlock Text="{ui:T 'Подключите наушники или колонки'}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="Auto,*" Margin="4,0,0,0">
-              <ui:Glyph Data="{x:Static ui:Icons.Bluetooth}" Width="26" Height="26" Foreground="{StaticResource SubBrush}" VerticalAlignment="Top" />
+              <ui:Glyph Data="{x:Static ui:Icons.Bluetooth}" Width="26" Height="26" Foreground="{DynamicResource SubBrush}" VerticalAlignment="Top" />
               <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="3">
-                <TextBlock Text="Включите Bluetooth-наушники" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock Text="Сначала подключите их в параметрах Windows, потом обновите список." Classes="sub" TextWrapping="Wrap" />
+                <TextBlock Text="{ui:T 'Включите Bluetooth-наушники'}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="Auto,*" Margin="4,0,0,0">
-              <ui:Glyph Data="{x:Static ui:Icons.Monitor}" Width="26" Height="26" Foreground="{StaticResource SubBrush}" VerticalAlignment="Top" />
+              <ui:Glyph Data="{x:Static ui:Icons.Monitor}" Width="26" Height="26" Foreground="{DynamicResource SubBrush}" VerticalAlignment="Top" />
               <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="3">
-                <TextBlock Text="Монитор или телевизор по HDMI" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock Text="Если у экрана есть динамики, он тоже появится в списке." Classes="sub" TextWrapping="Wrap" />
+                <TextBlock Text="{ui:T 'Монитор или телевизор по HDMI'}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
           </StackPanel>
@@ -88,7 +85,7 @@
           <Button Classes="pill dark" HorizontalAlignment="Left" Command="{Binding RefreshDevicesCommand}">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ui:Glyph Data="{x:Static ui:Icons.Refresh}" Width="16" Height="16" />
-              <TextBlock Text="Обновить список" />
+              <TextBlock Text="{ui:T 'Обновить список'}" />
             </StackPanel>
           </Button>
         </StackPanel>

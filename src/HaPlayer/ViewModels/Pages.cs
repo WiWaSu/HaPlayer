@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -26,15 +27,22 @@ public static class Gradients
         (byte)(a.B + (b.B - a.B) * t));
 
     /// <summary>Шапка страницы: цвет обложки сверху, к низу темнеет.</summary>
-    public static IBrush Header(Color c) => new LinearGradientBrush
+    public static IBrush Header(Color c)
     {
-        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-        EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
-        GradientStops = { new GradientStop(c, 0), new GradientStop(Mix(c, Panel, 0.55), 1) },
-    };
+        // В светлой теме текст шапки тёмный, поэтому цвет обложки разбавляем белым.
+        if (HaPlayer.Ui.ThemeService.IsLight) c = Mix(c, Panel, 0.55);
+        return new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+            GradientStops = { new GradientStop(c, 0), new GradientStop(Mix(c, Panel, 0.55), 1) },
+        };
+    }
 
     /// <summary>Под шапкой: остаток цвета плавно уходит в фон панели за 240 px.</summary>
-    public static IBrush Content(Color c) => new LinearGradientBrush
+    public static IBrush Content(Color c) => ContentBrush(HaPlayer.Ui.ThemeService.IsLight ? Mix(c, Panel, 0.55) : c);
+
+    private static IBrush ContentBrush(Color c) => new LinearGradientBrush
     {
         StartPoint = new RelativePoint(0, 0, RelativeUnit.Absolute),
         EndPoint = new RelativePoint(0, 240, RelativeUnit.Absolute),
@@ -60,6 +68,7 @@ public sealed class HomePageViewModel : PageViewModel
     public HomePageViewModel(MainViewModel main) : base(main)
     {
         Recent = main.RecentAlbums.Take(30).ToList();
+        Smart = main.SmartPlaylists.Where(s => s.Tracks.Count > 0).ToList();
         Quick = Recent.Take(7).Cast<CollectionItem>().Prepend(main.Liked).ToList();
         Background = new LinearGradientBrush
         {
@@ -72,13 +81,15 @@ public sealed class HomePageViewModel : PageViewModel
     public bool HasMusic => Main.Library.Count > 0;
     public string Greeting => DateTime.Now.Hour switch
     {
-        >= 5 and < 12 => "Доброе утро",
-        >= 12 and < 18 => "Добрый день",
-        >= 18 and < 23 => "Добрый вечер",
-        _ => "Доброй ночи",
+        >= 5 and < 12 => L.T("Доброе утро"),
+        >= 12 and < 18 => L.T("Добрый день"),
+        >= 18 and < 23 => L.T("Добрый вечер"),
+        _ => L.T("Доброй ночи"),
     };
     public List<CollectionItem> Quick { get; }
     public List<AlbumItem> Recent { get; }
+    public List<SmartItem> Smart { get; }
+    public bool HasSmart => Smart.Count > 0;
     public IBrush Background { get; }
 }
 
@@ -87,15 +98,15 @@ public sealed class TracksPageViewModel : PageViewModel
     public TracksPageViewModel(MainViewModel main) : base(main)
     {
         var list = main.Library;
-        Rows = main.MakeRows(list, "Все треки", (_, i) => (i + 1).ToString(), t => t.AlbumName, true);
+        Rows = main.MakeRows(list, L.T("Все треки"), (_, i) => (i + 1).ToString(), t => t.AlbumName, true);
         var total = list.Sum(t => t.Model.DurationSeconds);
         Summary = $"{Format.Tracks(list.Count)}, {Format.Total(total)}";
-        PlayAllCommand = new RelayCommand(() => main.PlayOrToggle(list, 0, "Все треки"));
+        PlayAllCommand = new RelayCommand(() => main.PlayOrToggle(list, 0, L.T("Все треки")));
         ShufflePlayCommand = new RelayCommand(() =>
         {
             if (list.Count == 0) return;
             main.Player.Shuffle = true;
-            main.Player.PlayList(list, Random.Shared.Next(list.Count), "Все треки");
+            main.Player.PlayList(list, Random.Shared.Next(list.Count), L.T("Все треки"));
         });
         HeaderBrush = Gradients.Header(HaPlayer.Ui.ThemeService.Mix(HaPlayer.Ui.ThemeService.Current.Accent, Colors.Black, 0.5));
     }
@@ -121,7 +132,50 @@ public sealed partial class SearchPageViewModel : PageViewModel
             Run();
         });
         Query = main.SearchQuery;
+
+        // Фильтры: папка медиатеки, год и формат. Первый пункт каждого списка — «без фильтра».
+        Folders = [L.T("Все папки"), .. main.Settings.MusicFolders.Select(f => System.IO.Path.GetFileName(f.TrimEnd('\\')) is { Length: > 0 } n ? n : f)];
+        _folderPaths = [.. main.Settings.MusicFolders];
+        Years = [L.T("Любой год"), .. main.Library.Select(t => t.Model.Year).Where(y => y > 0).Distinct().OrderDescending().Select(y => y.ToString())];
+        Formats = [L.T("Любой формат"), .. main.Library.Select(t => t.Extension).Where(e => e.Length > 0).Distinct().Order()];
         Run();
+    }
+
+    private readonly List<string> _folderPaths;
+    public string NothingFoundText => L.F("По запросу «{0}» ничего нет", Query);
+    public List<string> Folders { get; }
+    public List<string> Years { get; }
+    public List<string> Formats { get; }
+    public bool HasFolderFilter => Folders.Count > 2;
+
+    [ObservableProperty] private int _folderIndex;
+    [ObservableProperty] private int _yearIndex;
+    [ObservableProperty] private int _formatIndex;
+
+    partial void OnFolderIndexChanged(int value) => Run();
+    partial void OnYearIndexChanged(int value) => Run();
+    partial void OnFormatIndexChanged(int value) => Run();
+
+    public bool HasFilter => FolderIndex > 0 || YearIndex > 0 || FormatIndex > 0;
+
+    [RelayCommand]
+    private void ClearFilters()
+    {
+        FolderIndex = 0;
+        YearIndex = 0;
+        FormatIndex = 0;
+    }
+
+    private bool PassesFilters(TrackItem t)
+    {
+        if (FolderIndex > 0 && FolderIndex - 1 < _folderPaths.Count)
+        {
+            var prefix = _folderPaths[FolderIndex - 1].TrimEnd('\\') + "\\";
+            if (!t.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+        }
+        if (YearIndex > 0 && YearIndex < Years.Count && t.Model.Year.ToString() != Years[YearIndex]) return false;
+        if (FormatIndex > 0 && FormatIndex < Formats.Count && t.Extension != Formats[FormatIndex]) return false;
+        return true;
     }
 
     /// <summary>Запрос приходит из поля поиска в верхней панели окна.</summary>
@@ -131,6 +185,7 @@ public sealed partial class SearchPageViewModel : PageViewModel
     {
         Query = value;
         OnPropertyChanged(nameof(Query));
+        OnPropertyChanged(nameof(NothingFoundText));
         _debounce.Stop();
         _debounce.Start();
     }
@@ -141,7 +196,7 @@ public sealed partial class SearchPageViewModel : PageViewModel
     [ObservableProperty] private List<CollectionItem> _playlists = [];
     [ObservableProperty] private bool _hasQuery;
     [ObservableProperty] private bool _nothingFound;
-    [ObservableProperty] private string _tracksTitle = "Треки";
+    [ObservableProperty] private string _tracksTitle = L.T("Треки");
 
     public bool HasRows => Rows.Count > 0;
     public bool HasAlbums => Albums.Count > 0;
@@ -154,7 +209,8 @@ public sealed partial class SearchPageViewModel : PageViewModel
     private void Run()
     {
         var words = (Query ?? "").ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        HasQuery = words.Length > 0;
+        HasQuery = words.Length > 0 || HasFilter;
+        OnPropertyChanged(nameof(HasFilter));
         if (!HasQuery)
         {
             Rows = [];
@@ -168,14 +224,18 @@ public sealed partial class SearchPageViewModel : PageViewModel
 
         bool Match(string text) => words.All(text.Contains);
 
-        var tracks = Main.Library.Where(t => Match(t.SearchText)).ToList();
-        var shown = tracks.Take(100).ToList();
-        Rows = Main.MakeRows(shown, $"Поиск: {Query}", (_, i) => (i + 1).ToString(), t => t.AlbumName, true);
-        TracksTitle = tracks.Count > shown.Count ? $"Треки (первые {shown.Count} из {tracks.Count})" : "Треки";
+        var tracks = Main.Library.Where(t => Match(t.SearchText) && PassesFilters(t)).ToList();
+        // С фильтром без слов показываем больше: это способ пролистать, например, весь FLAC за 1999 год.
+        var limit = words.Length == 0 ? 500 : 100;
+        var shown = tracks.Take(limit).ToList();
+        Rows = Main.MakeRows(shown, words.Length > 0 ? L.F("Поиск: {0}", Query) : L.T("Поиск"), (_, i) => (i + 1).ToString(), t => t.AlbumName, true);
+        TracksTitle = tracks.Count > shown.Count ? L.F("Треки (первые {0} из {1})", shown.Count, tracks.Count) : L.F("Треки ({0})", tracks.Count);
 
-        Albums = Main.Albums.Where(a => Match($"{a.Name} {a.Artist}".ToLowerInvariant())).Take(12).ToList();
-        Artists = Main.Artists.Where(a => Match(a.Name.ToLowerInvariant())).Take(12).ToList();
-        Playlists = Main.AllPlaylists.Where(p => Match(p.Name.ToLowerInvariant())).Take(12).ToList();
+        // Альбомы, исполнители и плейлисты ищутся только по словам: фильтры относятся к трекам.
+        var byWords = words.Length > 0 && !HasFilter;
+        Albums = byWords ? Main.Albums.Where(a => Match($"{a.Name} {a.Artist}".ToLowerInvariant())).Take(12).ToList() : [];
+        Artists = byWords ? Main.Artists.Where(a => Match(a.Name.ToLowerInvariant())).Take(12).ToList() : [];
+        Playlists = byWords ? Main.AllPlaylists.Where(p => Match(p.Name.ToLowerInvariant())).Take(12).ToList() : [];
         NothingFound = Rows.Count == 0 && Albums.Count == 0 && Artists.Count == 0 && Playlists.Count == 0;
         NotifyCounts();
     }
@@ -210,12 +270,14 @@ public sealed partial class CollectionPageViewModel : PageViewModel
         var stats = list.Count > 0 ? $"{Format.Tracks(list.Count)}, {Format.Total(total)}" : "пока пусто";
         (KindLabel, Owner, Meta) = item switch
         {
-            AlbumItem a => ("Альбом", a.Artist, (a.Year > 0 ? $" • {a.Year}" : "") + $" • {stats}"),
-            ArtistItem => ("Исполнитель", "", stats),
-            _ => ("Плейлист", "", stats),
+            AlbumItem a => (L.T("Альбом"), a.Artist, (a.Year > 0 ? $" • {a.Year}" : "") + $" • {stats}"),
+            ArtistItem => (L.T("Исполнитель"), "", stats),
+            SmartItem s => (L.T("Подборка"), s.Description, " • " + stats),
+            _ => (L.T("Плейлист"), "", stats),
         };
 
         PlayCommand = new RelayCommand(() => main.Play(item));
+        ExportCommand = new AsyncRelayCommand(() => main.ExportM3uAsync(item));
         ShufflePlayCommand = new RelayCommand(() =>
         {
             if (list.Count == 0) return;
@@ -269,21 +331,33 @@ public sealed partial class CollectionPageViewModel : PageViewModel
 
     public bool HasArtistAlbums => ArtistAlbums.Count > 0;
     public bool IsPlaylist => Item is PlaylistItem;
-    public bool CanChangePhoto => !Item.IsLikedCollection;
+    public bool CanChangePhoto => !Item.IsLikedCollection && Item is not SmartItem;
+
+    /// <summary>«Добавить» у альбома и исполнителя меняет привязку, поэтому в строгом режиме скрыта.</summary>
+    public bool CanAddSongs => Item switch
+    {
+        SmartItem => false,
+        AlbumItem or ArtistItem => !Main.Settings.StrictTags,
+        _ => true,
+    };
+
+    public IAsyncRelayCommand ExportCommand { get; private set; } = null!;
     public bool HasTracks => Rows.Count > 0;
     public bool ShowAlbumColumn => Item is not AlbumItem;
     public CornerRadius CoverRadius => IsArtist ? new CornerRadius(116) : new CornerRadius(4);
 
     public string EmptyText => Item switch
     {
-        LikedItem => "Отмечайте песни кружком с плюсом или клавишей L.",
-        PlaylistItem => "Пусто. Добавьте песни кнопкой «Добавить» или правым кликом по треку.",
-        _ => "Пусто.",
+        LikedItem => L.T("Отмечайте песни кружком с плюсом или клавишей L."),
+        PlaylistItem => L.T("Пусто. Добавьте песни кнопкой «Добавить» или правым кликом по треку."),
+        SmartItem { Key: "recent" } => L.T("Пусто."),
+        SmartItem => L.T("Здесь появятся треки, когда наберётся история прослушивания."),
+        _ => L.T("Пусто."),
     };
 
     public IRelayCommand PlayCommand { get; }
     public IRelayCommand ShufflePlayCommand { get; }
-    public string MoreTip => $"Другие действия: {Item.Name}";
+    public string MoreTip => L.F("Другие действия: {0}", Item.Name);
     public IAsyncRelayCommand AddSongsCommand { get; }
     public IAsyncRelayCommand ChangePhotoCommand { get; }
     public IAsyncRelayCommand RenameCommand { get; }

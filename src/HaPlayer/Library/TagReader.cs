@@ -1,4 +1,4 @@
-namespace HaPlayer.Library;
+﻿namespace HaPlayer.Library;
 
 /// <summary>
 /// Читает теги через TagLib#. Файл открывается только на чтение, Save() не вызывается никогда:
@@ -6,7 +6,9 @@ namespace HaPlayer.Library;
 /// </summary>
 public static class TagReader
 {
+    // Эти два значения пишутся в базу как данные. На экране их переводит L.Data.
     public const string UnknownArtist = "Неизвестный исполнитель";
+    public const string NoAlbum = "Без альбома";
 
     public static Track Read(string path)
     {
@@ -17,7 +19,7 @@ public static class TagReader
             Title = System.IO.Path.GetFileNameWithoutExtension(path),
             Artist = UnknownArtist,
             // Если тега альбома нет, альбомом считается папка. Для неразмеченных коллекций это обычно верно.
-            Album = string.IsNullOrWhiteSpace(dirName) ? "Без альбома" : dirName,
+            Album = string.IsNullOrWhiteSpace(dirName) ? NoAlbum : dirName,
         };
 
         try
@@ -44,6 +46,7 @@ public static class TagReader
             track.DiscNo = (int)tag.Disc;
             track.Year = (int)tag.Year;
             track.DurationSeconds = file.Properties?.Duration.TotalSeconds ?? 0;
+            ReadTech(file, track);
         }
         catch
         {
@@ -51,6 +54,29 @@ public static class TagReader
         }
 
         return track;
+    }
+
+    private static void ReadTech(TagLib.File file, Track track)
+    {
+        if (file.Properties is not { } p) return;
+        track.Bitrate = p.AudioBitrate;
+        track.SampleRate = p.AudioSampleRate;
+        track.Channels = p.AudioChannels;
+    }
+
+    /// <summary>Только битрейт, частота и каналы: для треков, добавленных до того, как плеер их запоминал.</summary>
+    public static bool ReadTechOnly(Track track)
+    {
+        try
+        {
+            using var file = TagLib.File.Create(track.Path, TagLib.ReadStyle.Average);
+            ReadTech(file, track);
+            return track.SampleRate > 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string? FirstNonEmpty(params string?[] values) =>

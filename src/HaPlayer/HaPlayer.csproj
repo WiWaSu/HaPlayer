@@ -9,7 +9,7 @@
     <AssemblyName>HaPlayer</AssemblyName>
     <RootNamespace>HaPlayer</RootNamespace>
     <Product>HaPlayer</Product>
-    <Version>1.5.0</Version>
+    <Version>1.7.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\haplayer.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>

@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using System.Text;
 using System.Xml.Linq;
 
@@ -57,7 +58,7 @@ public static class PlaylistImporter
             var current = Path.Combine(root, name);
             if (!File.Exists(current)) continue;
             var paths = ReadM3U(current);
-            if (paths.Count > 0) result.Add(new ImportedPlaylist("Winamp: текущий плейлист", paths));
+            if (paths.Count > 0) result.Add(new ImportedPlaylist(L.T("Winamp: текущий плейлист"), paths));
             break;
         }
         return result;

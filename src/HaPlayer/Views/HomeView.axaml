@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:v="using:HaPlayer.Views"
@@ -15,17 +15,18 @@
 
           <ItemsControl ItemsSource="{Binding Quick}" Margin="0,0,0,32">
             <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
+              <ItemsPanelTemplate><UniformGrid Classes="quick" Columns="4" /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:CollectionItem">
                 <Button Classes="quick" Command="{Binding OpenCommand}">
-                  <Grid ColumnDefinitions="64,*,Auto">
+                  <Grid ColumnDefinitions="64,*">
                     <ui:CoverView Width="64" Height="64" CornerRadius="6,0,0,6" Source="{Binding Thumb}"
                                   IsLiked="{Binding IsLikedCollection}" />
                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" Margin="12,0"
-                               VerticalAlignment="Center" />
-                    <Button Grid.Column="2" Classes="primary small float" Margin="0,0,12,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+                    <!-- Кнопка появляется при наведении поверх правого края, название занимает всю ширину -->
+                    <Button Grid.Column="1" Classes="primary small float" Margin="0,0,10,0" HorizontalAlignment="Right"
                             Command="{Binding PlayCommand}">
                       <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="20" Height="20" />
                     </Button>
@@ -35,7 +36,35 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <TextBlock Text="Недавно добавленные" Classes="h2" Margin="0,0,0,12" />
+          <!-- Подборки, которые плеер собирает сам -->
+          <StackPanel IsVisible="{Binding HasSmart}" Margin="0,0,0,24">
+            <TextBlock Text="{ui:T 'Подборки'}" Classes="h2" Margin="0,0,0,12" />
+            <ItemsControl ItemsSource="{Binding Smart}" Margin="-12,0,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SmartItem">
+                  <Button Classes="card" Command="{Binding OpenCommand}">
+                    <StackPanel Spacing="4" Width="164">
+                      <Panel Margin="0,0,0,8">
+                        <ui:CoverView Width="164" Height="164" CornerRadius="6" Badge="{Binding Badge}" />
+                        <Button Classes="primary small float" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                Width="48" Height="48" CornerRadius="24" Margin="0,0,8,8"
+                                Command="{Binding PlayCommand}">
+                          <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="24" Height="24" />
+                        </Button>
+                      </Panel>
+                      <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                      <TextBlock Text="{Binding CardSubtitle}" Classes="sub" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <TextBlock Text="{ui:T 'Недавно добавленные'}" Classes="h2" Margin="0,0,0,12" />
           <ItemsControl ItemsSource="{Binding Recent}" Margin="-12,0,0,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>

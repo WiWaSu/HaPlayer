@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -9,7 +10,7 @@ public sealed class LinkException(string message) : Exception(message);
 /// <summary>
 /// Скачивает аудиофайл по прямой ссылке в папку медиатеки.
 /// Работает с любым сайтом одинаково: никаких правил под конкретные сайты, никакого разбора страниц.
-/// Если по ссылке страница, а не файл, честно говорит об этом.
+/// Если по ссылке открывается веб-страница, сообщает об этом.
 /// </summary>
 public static class LinkDownloader
 {
@@ -94,7 +95,7 @@ public static class LinkDownloader
         }
         catch (HttpRequestException ex)
         {
-            throw new LinkException($"Не удалось подключиться к {url.Host}. Проверьте интернет и саму ссылку.\n({ex.Message})");
+            throw new LinkException(L.F("Не удалось подключиться к {0}. Проверьте интернет и саму ссылку.\n({1})", url.Host, ex.Message));
         }
 
         using (response)
@@ -103,9 +104,9 @@ public static class LinkDownloader
             {
                 throw new LinkException((int)response.StatusCode switch
                 {
-                    404 => "По этой ссылке ничего нет (ошибка 404). Возможно, файл удалили или ссылка устарела.",
-                    401 or 403 => $"Сайт не отдаёт файл (ошибка {(int)response.StatusCode}). Часто так бывает, когда файл доступен только после входа или только в браузере.",
-                    _ => $"Сайт ответил ошибкой {(int)response.StatusCode}.",
+                    404 => L.T("По этой ссылке ничего нет (ошибка 404). Возможно, файл удалили или ссылка устарела."),
+                    401 or 403 => L.F("Сайт не отдаёт файл (ошибка {0}). Часто так бывает, когда файл доступен только после входа или только в браузере.", (int)response.StatusCode),
+                    _ => L.F("Сайт ответил ошибкой {0}.", (int)response.StatusCode),
                 });
             }
 
@@ -121,22 +122,22 @@ public static class LinkDownloader
 
             if (PlaylistMimes.Contains(mime, StringComparer.OrdinalIgnoreCase) ||
                 PlaylistExts.Contains(Path.GetExtension(serverName ?? urlName), StringComparer.OrdinalIgnoreCase))
-                throw new LinkException("Это ссылка на плейлист или интернет-радио. Скачать такое пока нельзя: нужна ссылка на отдельный аудиофайл.");
+                throw new LinkException(L.T("Это ссылка на плейлист или интернет-радио. Скачать такое пока нельзя: нужна ссылка на отдельный аудиофайл."));
 
             // Интернет-радио отдаёт бесконечный поток audio/mpeg без размера и с заголовками icy-*.
             if (content.ContentLength == null && response.Headers.Any(h => h.Key.StartsWith("icy-", StringComparison.OrdinalIgnoreCase)))
-                throw new LinkException("Это поток интернет-радио, у него нет конца, поэтому скачать его нельзя.");
+                throw new LinkException(L.T("Это поток интернет-радио, у него нет конца, поэтому скачать его нельзя."));
 
             if (content.ContentLength > MaxBytes)
-                throw new LinkException("Файл больше 1 ГБ. Для одной песни это слишком много, похоже, ссылка ведёт не на трек.");
+                throw new LinkException(L.T("Файл больше 1 ГБ. Для одной песни это слишком много, похоже, ссылка ведёт не на трек."));
 
             var ext = PickExtension(serverName, urlName, mime)
                       ?? throw new LinkException(
-                          $"По ссылке не аудиофайл или формат, который HaPlayer пока не умеет играть (тип: {(mime.Length > 0 ? mime : "не указан")}).\n" +
-                          $"Поддерживаются: {string.Join(", ", AudioFormats.Extensions)}.");
+                          L.F("По ссылке не аудиофайл или формат, который HaPlayer пока не умеет играть (тип: {0}).", mime.Length > 0 ? mime : L.T("не указан")) + "\n" +
+                          L.F("Поддерживаются: {0}.", string.Join(", ", AudioFormats.Extensions)));
 
             var baseName = MakeSafeName(Path.GetFileNameWithoutExtension(serverName ?? urlName));
-            if (baseName.Length == 0) baseName = "Трек " + DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
+            if (baseName.Length == 0) baseName = L.T("Трек ") + DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
             var target = UniquePath(folder, baseName, ext);
             var part = target + ".part";
 
@@ -159,11 +160,11 @@ public static class LinkDownloader
                         }
                         done += read;
                         if (done > MaxBytes)
-                            throw new LinkException("Скачано больше 1 ГБ, а файл всё не кончается. Похоже, это поток, а не песня.");
+                            throw new LinkException(L.T("Скачано больше 1 ГБ, а файл всё не кончается. Похоже, это бесконечный поток."));
                         await dst.WriteAsync(buffer.AsMemory(0, read), ct);
                         progress?.Report((done, content.ContentLength));
                     }
-                    if (done == 0) throw new LinkException("Сайт вернул пустой файл.");
+                    if (done == 0) throw new LinkException(L.T("Сайт вернул пустой файл."));
                 }
                 File.Move(part, target);
                 return target;
@@ -177,9 +178,9 @@ public static class LinkDownloader
     }
 
     private static LinkException NotAFile() => new(
-        "По ссылке открывается страница сайта, а не сам файл.\n\n" +
-        "Нужна прямая ссылка на аудиофайл. Обычно её можно получить так: правой кнопкой по кнопке «Скачать» на сайте → «Копировать адрес ссылки». " +
-        "Такая ссылка чаще всего заканчивается на .mp3 или .flac.");
+        L.T("По ссылке открывается страница сайта.\n\n") +
+        L.T("Нужна прямая ссылка на аудиофайл. Обычно её можно получить так: правой кнопкой по кнопке «Скачать» на сайте → «Копировать адрес ссылки». ") +
+        L.T("Такая ссылка чаще всего заканчивается на .mp3 или .flac."));
 
     private static string? PickExtension(string? serverName, string urlName, string mime)
     {

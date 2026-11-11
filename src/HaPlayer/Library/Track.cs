@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 namespace HaPlayer.Library;
 
 public sealed class Track
@@ -12,6 +13,11 @@ public sealed class Track
     public int Year { get; set; }
     public double DurationSeconds { get; set; }
 
+    // Технические данные файла. 0 — ещё не прочитаны (трек добавлен версией до 1.6).
+    public int Bitrate { get; set; }
+    public int SampleRate { get; set; }
+    public int Channels { get; set; }
+
     /// <summary>Время изменения файла (UTC ticks). По нему повторное сканирование пропускает неизменённые файлы.</summary>
     public long ModifiedTicks { get; set; }
 
@@ -22,9 +28,15 @@ public sealed class Track
     public string? UserAlbumKey { get; set; }
     public string? UserArtist { get; set; }
 
-    public string EffectiveArtist => UserArtist ?? Artist;
-    public string AlbumKey => UserAlbumKey ?? MakeAlbumKey(Album, AlbumArtist);
-    public string EffectiveAlbum => UserAlbumKey != null ? AlbumNameFromKey(UserAlbumKey) : Album;
+    /// <summary>
+    /// Строгий режим: альбом и исполнитель только из тегов файла, привязки из HaPlayer не учитываются.
+    /// Сами привязки остаются в базе и вернутся, если режим выключить.
+    /// </summary>
+    public static bool TagsOnly { get; set; }
+
+    public string EffectiveArtist => (TagsOnly ? null : UserArtist) ?? Artist;
+    public string AlbumKey => (TagsOnly ? null : UserAlbumKey) ?? MakeAlbumKey(Album, AlbumArtist);
+    public string EffectiveAlbum => !TagsOnly && UserAlbumKey != null ? AlbumNameFromKey(UserAlbumKey) : Album;
 
     public static string MakeAlbumKey(string album, string? albumArtist) => $"{album}\u001f{albumArtist ?? ""}";
     public static string AlbumNameFromKey(string key) => key.Split('\u001f')[0];
@@ -39,11 +51,11 @@ public static class AudioFormats
     /// <summary>Подписи для настроек: какие расширения к какому формату относятся.</summary>
     public static readonly (string Name, string Description, string[] Extensions)[] Groups =
     [
-        ("MP3", "Самый распространённый формат со сжатием", [".mp3"]),
-        ("FLAC", "Сжатие без потерь", [".flac"]),
-        ("WAV", "Несжатый звук", [".wav"]),
+        ("MP3", L.T("Самый распространённый формат со сжатием"), [".mp3"]),
+        ("FLAC", L.T("Сжатие без потерь"), [".flac"]),
+        ("WAV", L.T("Несжатый звук"), [".wav"]),
         ("Ogg Vorbis", ".ogg, .oga", [".ogg", ".oga"]),
-        ("AAC / M4A", "iTunes, Apple Music, ALAC внутри .m4a", [".m4a", ".aac"]),
+        ("AAC / M4A", L.T("iTunes, Apple Music, ALAC внутри .m4a"), [".m4a", ".aac"]),
         ("WMA", "Windows Media Audio", [".wma"]),
     ];
 
@@ -130,7 +142,7 @@ public static class AppPaths
             {
                 var custom = File.ReadAllText(PointerFile).Trim();
                 var root = Path.GetPathRoot(custom);
-                // Внешний диск может быть не подключён: тогда честно работаем из AppData, а не падаем.
+                // Внешний диск может быть не подключён: тогда работаем из AppData.
                 if (custom.Length > 0 && root != null && Directory.Exists(root))
                 {
                     _mode = DataMode.Custom;
@@ -162,7 +174,7 @@ public static class AppPaths
     {
         if (mode == DataMode.Portable)
         {
-            File.WriteAllText(PortableMarker, "Этот файл включает портативный режим HaPlayer: данные хранятся в папке «HaPlayer Data» рядом с программой.\r\n");
+            File.WriteAllText(PortableMarker, ("Этот файл включает портативный режим HaPlayer: данные хранятся в папке «HaPlayer Data» рядом с программой.\r\n"));
             return;
         }
 

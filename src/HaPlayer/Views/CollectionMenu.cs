@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
 using HaPlayer.ViewModels;
@@ -19,25 +20,29 @@ public static class CollectionMenu
     {
         var items = new List<Control>
         {
-            Item("Играть", () => main.Play(item)),
+            Item(L.T("Играть"), () => main.Play(item)),
         };
 
-        if (!item.IsBuiltInPinned)
-            items.Add(Item(item.IsUserPinned ? "Открепить в медиатеке" : "Закрепить в медиатеке", () => main.TogglePin(item)));
+        if (!item.IsBuiltInPinned && item is not SmartItem)
+            items.Add(Item(item.IsUserPinned ? L.T("Открепить в медиатеке") : L.T("Закрепить в медиатеке"), () => main.TogglePin(item)));
 
-        if (item is not AllTracksItem)
+        if (item.Tracks.Count > 0)
+            items.Add(Item(L.T("Сохранить как .m3u8…"), () => main.ExportM3uAsync(item)));
+
+        var canAssign = item is not (AlbumItem or ArtistItem) || !main.Settings.StrictTags;
+        if (item is not (AllTracksItem or SmartItem) && canAssign)
         {
             items.Add(new Separator());
-            items.Add(Item("Добавить песни с диска…", () => main.AddSongsFromDiskAsync(item)));
-            if (!item.IsLikedCollection) items.Add(Item("Сменить обложку…", () => main.ChangePhotoAsync(item)));
-            if (item is PlaylistItem p) items.Add(Item("Переименовать…", () => main.RenamePlaylistAsync(p)));
+            items.Add(Item(L.T("Добавить песни с диска…"), () => main.AddSongsFromDiskAsync(item)));
+            if (!item.IsLikedCollection) items.Add(Item(L.T("Сменить обложку…"), () => main.ChangePhotoAsync(item)));
+            if (item is PlaylistItem p) items.Add(Item(L.T("Переименовать…"), () => main.RenamePlaylistAsync(p)));
         }
 
         var delete = item switch
         {
-            PlaylistItem => "Удалить плейлист",
-            AlbumItem => "Убрать альбом из медиатеки",
-            ArtistItem => "Убрать исполнителя из медиатеки",
+            PlaylistItem => L.T("Удалить плейлист"),
+            AlbumItem => L.T("Убрать альбом из медиатеки"),
+            ArtistItem => L.T("Убрать исполнителя из медиатеки"),
             _ => null,
         };
         if (delete != null)

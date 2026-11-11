@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:HaPlayer.ViewModels"
              xmlns:ui="using:HaPlayer.Ui"
@@ -9,10 +9,20 @@
     <ScrollViewer>
       <StackPanel Margin="24,24,24,24" Spacing="28">
 
+        <!-- Фильтры: папка, год, формат -->
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,-8,0,-12">
+          <ComboBox ItemsSource="{Binding Folders}" SelectedIndex="{Binding FolderIndex}" IsVisible="{Binding HasFolderFilter}" MinWidth="140" />
+          <ComboBox ItemsSource="{Binding Years}" SelectedIndex="{Binding YearIndex}" MinWidth="120" MaxDropDownHeight="360" />
+          <ComboBox ItemsSource="{Binding Formats}" SelectedIndex="{Binding FormatIndex}" MinWidth="130" />
+          <Button Classes="icon" Command="{Binding ClearFiltersCommand}" IsVisible="{Binding HasFilter}"
+                  ToolTip.Tip="{ui:T 'Сбросить фильтры'}" VerticalAlignment="Center">
+            <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="14" Height="14" />
+          </Button>
+        </StackPanel>
+
         <!-- До ввода: подсказка и недавние альбомы -->
         <StackPanel IsVisible="{Binding !HasQuery}" Spacing="12">
-          <TextBlock Text="Начните вводить название трека, альбома или исполнителя" Classes="sub" FontSize="14" />
-          <TextBlock Text="Недавно добавленные" Classes="h2" Margin="0,12,0,0" />
+          <TextBlock Text="{ui:T 'Недавно добавленные'}" Classes="h2" />
           <ItemsControl ItemsSource="{Binding Browse}" Margin="-12,0,0,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -34,15 +44,13 @@
 
         <!-- Ничего не нашлось -->
         <StackPanel IsVisible="{Binding NothingFound}" Spacing="8" Margin="0,40,0,0" HorizontalAlignment="Center">
-          <TextBlock Text="{Binding Query, StringFormat='По запросу «{0}» ничего нет'}" FontSize="24"
+          <TextBlock Text="{Binding NothingFoundText}" FontSize="24"
                      FontWeight="Bold" HorizontalAlignment="Center" />
-          <TextBlock Text="Проверьте написание или попробуйте другие слова." Classes="sub" FontSize="14"
-                     HorizontalAlignment="Center" />
         </StackPanel>
 
         <!-- Исполнители -->
         <StackPanel IsVisible="{Binding HasArtists}" Spacing="12">
-          <TextBlock Text="Исполнители" Classes="h2" />
+          <TextBlock Text="{ui:T 'Исполнители'}" Classes="h2" />
           <ItemsControl ItemsSource="{Binding Artists}" Margin="-12,0,0,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -54,7 +62,7 @@
                     <ui:CoverView Width="164" Height="164" CornerRadius="82" Source="{Binding Art}" Margin="0,0,0,8"
                                   BoxShadow="0 8 24 0 #80000000" />
                     <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
-                    <TextBlock Text="Исполнитель" Classes="sub" />
+                    <TextBlock Text="{ui:T 'Исполнитель'}" Classes="sub" />
                   </StackPanel>
                 </Button>
               </DataTemplate>
@@ -71,7 +79,7 @@
 
         <!-- Альбомы -->
         <StackPanel IsVisible="{Binding HasAlbums}" Spacing="12">
-          <TextBlock Text="Альбомы" Classes="h2" />
+          <TextBlock Text="{ui:T 'Альбомы'}" Classes="h2" />
           <ItemsControl ItemsSource="{Binding Albums}" Margin="-12,0,0,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -100,7 +108,7 @@
 
         <!-- Плейлисты -->
         <StackPanel IsVisible="{Binding HasPlaylists}" Spacing="12">
-          <TextBlock Text="Плейлисты" Classes="h2" />
+          <TextBlock Text="{ui:T 'Плейлисты'}" Classes="h2" />
           <ItemsControl ItemsSource="{Binding Playlists}" Margin="-12,0,0,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>

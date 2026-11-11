@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Avalonia.Threading;
@@ -27,27 +28,27 @@ public sealed partial class TorrentRow : ObservableObject
     [ObservableProperty] private string _status = "";
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isDone;
-    [ObservableProperty] private string _copyText = "Скопировать ссылку";
+    [ObservableProperty] private string _copyText = L.T("Скопировать ссылку");
 
     public void Refresh()
     {
         var m = Manager;
-        Name = m.Torrent?.Name ?? m.MagnetLink?.Name ?? "Раздача без названия";
+        Name = m.Torrent?.Name ?? m.MagnetLink?.Name ?? L.T("Раздача без названия");
         Progress = m.HasMetadata ? m.PartialProgress : 0;
         IsDone = TorrentService.IsFinished(m);
         Status = _owner.IsBrokenShare(m)
-            ? "Часть файлов в папке изменилась или пропала, раздаётся только то, что совпало. Чтобы раздать заново, уберите раздачу и создайте её ещё раз."
+            ? L.T("Часть файлов в папке изменилась или пропала, раздаётся только то, что совпало. Чтобы раздать заново, уберите раздачу и создайте её ещё раз.")
             : m.State switch
         {
-            TorrentState.Error => "Ошибка: " + (m.Error?.Exception.Message ?? "неизвестная"),
+            TorrentState.Error => L.T("Ошибка: ") + (m.Error?.Exception.Message ?? L.T("неизвестная")),
             TorrentState.Stopped or TorrentState.Stopping when m.HasMetadata && !TorrentService.HasMusic(m)
-                => "Остановлено: в раздаче нет музыки, которую умеет играть HaPlayer",
-            TorrentState.Stopped or TorrentState.Stopping or TorrentState.Paused => "Остановлено",
-            TorrentState.Metadata => $"Ищу участников и список файлов… На связи: {m.OpenConnections}",
-            TorrentState.Hashing => "Проверяю файлы…",
-            TorrentState.Seeding or TorrentState.Downloading when IsDone => $"Раздаётся · отдано {Size(m.Monitor.DataBytesSent)} · сейчас качают: {m.UploadingTo}",
-            TorrentState.Downloading => $"Скачано {m.PartialProgress:0}% · {Size(m.Monitor.DownloadRate)}/с{Eta(m)} · на связи: {m.OpenConnections}",
-            _ => "Запускаю…",
+                => L.T("Остановлено: в раздаче нет музыки, которую умеет играть HaPlayer"),
+            TorrentState.Stopped or TorrentState.Stopping or TorrentState.Paused => L.T("Остановлено"),
+            TorrentState.Metadata => L.F("Ищу участников и список файлов… На связи: {0}", m.OpenConnections),
+            TorrentState.Hashing => L.T("Проверяю файлы…"),
+            TorrentState.Seeding or TorrentState.Downloading when IsDone => L.F("Раздаётся · отдано {0} · сейчас качают: {1}", Size(m.Monitor.DataBytesSent), m.UploadingTo),
+            TorrentState.Downloading => L.F("Скачано {0:0}% · {1}/с{2} · на связи: {3}", m.PartialProgress, Size(m.Monitor.DownloadRate), Eta(m), m.OpenConnections),
+            _ => L.T("Запускаю…"),
         };
     }
 
@@ -67,18 +68,18 @@ public sealed partial class TorrentRow : ObservableObject
         if (left <= 0) return "";
 
         var t = TimeSpan.FromSeconds(left / _smoothRate);
-        var text = t.TotalMinutes < 1 ? "меньше минуты"
-            : t.TotalHours < 1 ? $"~{Math.Ceiling(t.TotalMinutes):0} мин"
-            : t.TotalDays < 1 ? $"~{(int)t.TotalHours} ч {t.Minutes} мин"
-            : "больше суток";
-        return $" · осталось {text}";
+        var text = t.TotalMinutes < 1 ? L.T("меньше минуты")
+            : t.TotalHours < 1 ? L.F("~{0:0} мин", Math.Ceiling(t.TotalMinutes))
+            : t.TotalDays < 1 ? L.F("~{0} ч {1} мин", (int)t.TotalHours, t.Minutes)
+            : L.T("больше суток");
+        return L.F(" · осталось {0}", text);
     }
 
     private static string Size(long bytes) => bytes switch
     {
-        < 1024 * 1024 => $"{bytes / 1024.0:0} КБ",
-        < 1024L * 1024 * 1024 => $"{bytes / 1048576.0:0.0} МБ",
-        _ => $"{bytes / 1073741824.0:0.00} ГБ",
+        < 1024 * 1024 => L.F("{0:0} КБ", bytes / 1024.0),
+        < 1024L * 1024 * 1024 => L.F("{0:0.0} МБ", bytes / 1048576.0),
+        _ => L.F("{0:0.00} ГБ", bytes / 1073741824.0),
     };
 
     [RelayCommand]
@@ -134,7 +135,7 @@ public sealed partial class TorrentsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            if (_main.Dialogs != null) await _main.Dialogs.MessageAsync("Торренты", "Не получилось запустить торренты: " + ex.Message);
+            if (_main.Dialogs != null) await _main.Dialogs.MessageAsync(L.T("Торренты"), L.T("Не получилось запустить торренты: ") + ex.Message);
             IsEnabled = false;
             return;
         }
@@ -223,11 +224,11 @@ public sealed partial class TorrentsViewModel : ObservableObject
     {
         var d = _main.Dialogs;
         if (d == null || _service == null) return;
-        var text = await d.PromptAsync("Открыть magnet-ссылку", "magnet:?xt=urn:btih:…", "", "Скачать");
+        var text = await d.PromptAsync(L.T("Открыть magnet-ссылку"), "magnet:?xt=urn:btih:…", "", L.T("Скачать"));
         if (text == null) return;
         if (!TorrentService.TryParseMagnet(text, out var magnet))
         {
-            await d.MessageAsync("Торренты", "Не вижу magnet-ссылки. Она начинается с magnet:?xt=…");
+            await d.MessageAsync(L.T("Торренты"), L.T("Не вижу magnet-ссылки. Она начинается с magnet:?xt=…"));
             return;
         }
         await RunAsync(() => _service.AddMagnetAsync(magnet, _main.DownloadFolder));
@@ -254,7 +255,7 @@ public sealed partial class TorrentsViewModel : ObservableObject
 
         string magnet;
         _main.IsBusy = true;
-        _main.BusyText = "Готовлю раздачу: считаю контрольные суммы файлов…";
+        _main.BusyText = L.T("Готовлю раздачу: считаю контрольные суммы файлов…");
         try
         {
             var (manager, link) = await Task.Run(() => service.ShareAsync(folder));
@@ -265,7 +266,7 @@ public sealed partial class TorrentsViewModel : ObservableObject
         catch (Exception ex)
         {
             _main.IsBusy = false;
-            await d.MessageAsync("Раздать папку", ErrorText(ex));
+            await d.MessageAsync(L.T("Раздать папку"), ErrorText(ex));
             return;
         }
         finally
@@ -274,10 +275,10 @@ public sealed partial class TorrentsViewModel : ObservableObject
         }
 
         await d.CopyTextAsync(magnet);
-        await d.MessageAsync("Раздача готова",
-            "Ссылка скопирована. Отправьте её другу: он откроет её в HaPlayer (Настройки → Торренты) или в любом торрент-клиенте, например qBittorrent.\n\n" +
-            "Раздача идёт, пока HaPlayer открыт и торренты включены. Файлы раздаются прямо из вашей папки, ничего не копируется. " +
-            "Первое подключение может занять несколько минут: участникам нужно время, чтобы найти друг друга.");
+        await d.MessageAsync(L.T("Раздача готова"),
+            L.T("Ссылка скопирована. Отправьте её другу: он откроет её в HaPlayer (Настройки → Торренты) или в любом торрент-клиенте, например qBittorrent.\n\n") +
+            L.T("Раздача идёт, пока HaPlayer открыт и торренты включены. Файлы раздаются прямо из вашей папки, ничего не копируется. ") +
+            L.T("Первое подключение может занять несколько минут: участникам нужно время, чтобы найти друг друга."));
     }
 
     private async Task RunAsync(Func<Task> action)
@@ -289,11 +290,11 @@ public sealed partial class TorrentsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            if (_main.Dialogs != null) await _main.Dialogs.MessageAsync("Торренты", ErrorText(ex));
+            if (_main.Dialogs != null) await _main.Dialogs.MessageAsync(L.T("Торренты"), ErrorText(ex));
         }
     }
 
-    private static string ErrorText(Exception ex) => ex is LinkException ? ex.Message : "Не получилось: " + ex.Message;
+    private static string ErrorText(Exception ex) => ex is LinkException ? ex.Message : L.T("Не получилось: ") + ex.Message;
 
     // ---------- Действия со строкой ----------
 
@@ -301,9 +302,9 @@ public sealed partial class TorrentsViewModel : ObservableObject
     {
         if (_main.Dialogs == null) return;
         await _main.Dialogs.CopyTextAsync(TorrentService.MagnetFor(row.Manager));
-        row.CopyText = "Скопировано";
+        row.CopyText = L.T("Скопировано");
         await Task.Delay(2000);
-        row.CopyText = "Скопировать ссылку";
+        row.CopyText = L.T("Скопировать ссылку");
     }
 
     public void OpenFolder(TorrentRow row)
@@ -325,8 +326,8 @@ public sealed partial class TorrentsViewModel : ObservableObject
     {
         var d = _main.Dialogs;
         if (d == null || _service == null) return;
-        var ok = await d.ConfirmAsync("Убрать раздачу?",
-            $"{row.Name}\n\nHaPlayer перестанет её раздавать и докачивать. Файлы на диске останутся на месте.", "Убрать");
+        var ok = await d.ConfirmAsync(L.T("Убрать раздачу?"),
+            L.F("{0}\n\nHaPlayer перестанет её раздавать и докачивать. Файлы на диске останутся на месте.", row.Name), "Убрать");
         if (!ok) return;
         await RunAsync(() => _service.RemoveAsync(row.Manager));
     }

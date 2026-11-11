@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
@@ -19,8 +19,8 @@ public sealed class CoverView : Border
     public static readonly StyledProperty<Geometry?> BadgeProperty =
         AvaloniaProperty.Register<CoverView, Geometry?>(nameof(Badge));
 
-    private static readonly IBrush PlaceholderBrush = new SolidColorBrush(Color.Parse("#282828"));
-    private static readonly IBrush NoteBrush = new SolidColorBrush(Color.Parse("#7A7A7A"));
+    private static IBrush PlaceholderBrush => ThemeService.CoverPlaceholder;
+    private static IBrush NoteBrush => ThemeService.CoverNote;
 
     private readonly Image _image = new() { Stretch = Stretch.UniformToFill };
     private readonly Glyph _icon = new()

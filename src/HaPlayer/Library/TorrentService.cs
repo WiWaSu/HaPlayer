@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using MonoTorrent;
 using MonoTorrent.Client;
 
@@ -147,7 +148,7 @@ public sealed class TorrentService
     public async Task<TorrentManager> AddMagnetAsync(MagnetLink magnet, string saveFolder)
     {
         var engine = Engine();
-        if (engine.Contains(magnet.InfoHashes)) throw new LinkException("Эта раздача уже есть в списке.");
+        if (engine.Contains(magnet.InfoHashes)) throw new LinkException(L.T("Эта раздача уже есть в списке."));
         System.IO.Directory.CreateDirectory(saveFolder);
         var m = await engine.AddAsync(magnet, saveFolder);
         Watch(m);
@@ -159,8 +160,8 @@ public sealed class TorrentService
     {
         var engine = Engine();
         if (!Torrent.TryLoad(path, out var torrent) || torrent == null)
-            throw new LinkException("Этот файл не похож на .torrent или он повреждён.");
-        if (engine.Contains(torrent)) throw new LinkException("Эта раздача уже есть в списке.");
+            throw new LinkException(L.T("Этот файл не похож на .torrent или он повреждён."));
+        if (engine.Contains(torrent)) throw new LinkException(L.T("Эта раздача уже есть в списке."));
         System.IO.Directory.CreateDirectory(saveFolder);
         var m = await engine.AddAsync(torrent, saveFolder);
         Watch(m);
@@ -176,7 +177,7 @@ public sealed class TorrentService
     {
         var engine = Engine();
         var source = new TorrentFileSource(path, ignoreHidden: true);
-        if (!source.Files.Any()) throw new LinkException("В этой папке нет файлов.");
+        if (!source.Files.Any()) throw new LinkException(L.T("В этой папке нет файлов."));
 
         var creator = new TorrentCreator(TorrentType.V1Only) { CreatedBy = "HaPlayer" };
         creator.Announces.Add([.. DefaultTrackers]);
@@ -285,7 +286,7 @@ public sealed class TorrentService
             .ToList();
 
     private ClientEngine Engine() =>
-        _engine ?? throw new LinkException("Торренты выключены. Включите их в настройках.");
+        _engine ?? throw new LinkException(L.T("Торренты выключены. Включите их в настройках."));
 
     /// <summary>
     /// Когда известен список файлов, отключаем всё, кроме музыки и обложек.

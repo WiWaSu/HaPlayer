@@ -1,3 +1,4 @@
+﻿using HaPlayer.Ui;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -19,6 +20,12 @@ public partial class MainWindow : Window, IDialogService
         AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
         // Окно потеряло фокус посреди нажатия: отпускание до нас не дойдёт, забываем нажатые клавиши.
         Deactivated += (_, _) => _pressed.Clear();
+        // Вёрстка подстраивается под ширину окна: от половины ноутбучного экрана до широкого монитора.
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == ClientSizeProperty) ApplyLayout(ClientSize.Width / _scale);
+        };
+
         AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -38,6 +45,8 @@ public partial class MainWindow : Window, IDialogService
         base.OnDataContextChanged(e);
         if (Vm == null) return;
         Vm.Dialogs = this;
+        Vm.ScaleChanged = ApplyScale;
+        ApplyScale(Vm.Settings.UiScale);
         Vm.FocusSearchRequested = () =>
         {
             TopSearch.Focus();
@@ -79,8 +88,10 @@ public partial class MainWindow : Window, IDialogService
             return;
         }
 
-        // В поле ввода буквы и пробел нужны для текста, а не для управления плеером.
+        // В поле ввода буквы и пробел печатают текст и плеером не управляют.
         if (e.KeyModifiers != KeyModifiers.None || e.Source is TextBox) return;
+        // Медиаклавиши при включённых глобальных клавишах ловит система: здесь пропускаем, иначе сработало бы дважды.
+        if (vm.GlobalHotkeysActive && e.Key is Key.MediaPlayPause or Key.MediaNextTrack or Key.MediaPreviousTrack or Key.MediaStop) return;
         var p = vm.Player;
         Action? action = e.Key switch
         {
@@ -122,17 +133,50 @@ public partial class MainWindow : Window, IDialogService
         if (_pressed.Remove(e.Key) && e.Source is not TextBox) e.Handled = true;
     }
 
+    // ---------- Масштаб ----------
+
+    private double _scale = 1;
+
+    /// <summary>Увеличивает или уменьшает весь интерфейс окна. Ступени ширины считаются уже в новом масштабе.</summary>
+    public void ApplyScale(double scale)
+    {
+        _scale = Math.Clamp(scale, 0.75, 1.5);
+        Scaler.LayoutTransform = Math.Abs(_scale - 1) < 0.01 ? null : new Avalonia.Media.ScaleTransform(_scale, _scale);
+        ExtendClientAreaTitleBarHeightHint = 64 * _scale;
+        ApplyLayout(ClientSize.Width / _scale);
+    }
+
+    // ---------- Ширина окна ----------
+
+    /// <summary>
+    /// Три ступени. Широкое окно: всё как есть. Узкое (меньше 1180): медиатека слева сжимается до обложек,
+    /// в списках треков пропадает дата. Совсем узкое (меньше 900): прячется правая панель и колонка альбома.
+    /// </summary>
+    private void ApplyLayout(double width)
+    {
+        var narrow = width < 1180;
+        var tiny = width < 900;
+        Classes.Set("medium", width < 1440);
+        Classes.Set("narrow", narrow);
+        Classes.Set("tiny", tiny);
+        Sidebar.Classes.Set("compact", narrow);
+        Root.ColumnDefinitions[0].Width = new GridLength(narrow ? 88 : width >= 1800 ? 420 : 370);
+        RightPanels.IsVisible = !tiny;
+        TopSearchBox.Width = tiny ? 200 : narrow ? 340 : 470;
+    }
+
     // ---------- Перетаскивание файлов и папок ----------
 
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(DataFormats.Files)) DropOverlay.IsVisible = true;
+        if (e.Data.Contains(DataFormats.Files) && !e.Data.Contains(TrackDrag.Format)) DropOverlay.IsVisible = true;
     }
 
     private void OnDragLeave(object? sender, DragEventArgs e) => DropOverlay.IsVisible = false;
 
     private void OnDragOver(object? sender, DragEventArgs e) =>
-        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.DragEffects = e.Data.Contains(DataFormats.Files) && !e.Data.Contains(TrackDrag.Format)
+            ? DragDropEffects.Copy : DragDropEffects.None;
 
     private async void OnDrop(object? sender, DragEventArgs e)
     {
@@ -147,11 +191,11 @@ public partial class MainWindow : Window, IDialogService
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Добавить файлы",
+            Title = L.T("Добавить файлы"),
             AllowMultiple = true,
             FileTypeFilter =
             [
-                new FilePickerFileType("Аудио") { Patterns = AudioFormats.Extensions.Select(x => "*" + x).ToArray() },
+                new FilePickerFileType(L.T("Аудио")) { Patterns = AudioFormats.Extensions.Select(x => "*" + x).ToArray() },
             ],
         });
         return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
@@ -161,11 +205,11 @@ public partial class MainWindow : Window, IDialogService
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Выберите фото",
+            Title = L.T("Выберите фото"),
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Изображения") { Patterns = AppPaths.ImageExtensions.Select(x => "*" + x).ToArray() },
+                new FilePickerFileType(L.T("Изображения")) { Patterns = AppPaths.ImageExtensions.Select(x => "*" + x).ToArray() },
             ],
         });
         return files.Select(f => f.TryGetLocalPath()).OfType<string>().FirstOrDefault();
@@ -175,11 +219,11 @@ public partial class MainWindow : Window, IDialogService
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Плейлисты других плееров",
+            Title = L.T("Плейлисты других плееров"),
             AllowMultiple = true,
             FileTypeFilter =
             [
-                new FilePickerFileType("Плейлисты (M3U, PLS, XSPF, WPL, AIMP, iTunes XML)")
+                new FilePickerFileType(L.T("Плейлисты (M3U, PLS, XSPF, WPL, AIMP, iTunes XML)"))
                 {
                     Patterns = PlaylistImporter.Extensions.Select(x => "*" + x).ToArray(),
                 },
@@ -188,13 +232,28 @@ public partial class MainWindow : Window, IDialogService
         return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
     }
 
+    public async Task<string?> PickSaveFileAsync(string suggestedName, string extension)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var name = new string(suggestedName.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = L.T("Сохранить плейлист"),
+            SuggestedFileName = name + extension,
+            DefaultExtension = extension.TrimStart('.'),
+            ShowOverwritePrompt = true,
+            FileTypeChoices = [new FilePickerFileType(L.T("Плейлист M3U")) { Patterns = ["*" + extension, "*.m3u"] }],
+        });
+        return file?.TryGetLocalPath();
+    }
+
     public async Task<string?> PickTorrentFileAsync()
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Торрент-файл",
+            Title = L.T("Торрент-файл"),
             AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("Торрент-файлы") { Patterns = ["*.torrent"] }],
+            FileTypeFilter = [new FilePickerFileType(L.T("Торрент-файлы")) { Patterns = ["*.torrent"] }],
         });
         return files.FirstOrDefault()?.TryGetLocalPath();
     }
@@ -216,7 +275,7 @@ public partial class MainWindow : Window, IDialogService
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Папка с музыкой",
+            Title = L.T("Папка с музыкой"),
             AllowMultiple = false,
         });
         return folders.FirstOrDefault()?.TryGetLocalPath();

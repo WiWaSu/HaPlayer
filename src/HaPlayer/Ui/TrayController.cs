@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -30,7 +30,7 @@ public sealed class TrayController
 
         _playPause.Command = new RelayCommand(() => vm.Player.PlayPause());
 
-        var volume = new NativeMenuItem("Громкость") { Menu = new NativeMenu() };
+        var volume = new NativeMenuItem(L.T("Громкость")) { Menu = new NativeMenu() };
         foreach (var level in new[] { 100, 75, 50, 25, 10 })
             volume.Menu.Add(new NativeMenuItem($"{level}%") { Command = new RelayCommand(() => vm.Player.Volume = level) });
 
@@ -39,12 +39,12 @@ public sealed class TrayController
             _nowPlaying,
             new NativeMenuItemSeparator(),
             _playPause,
-            new NativeMenuItem("Следующий") { Command = new RelayCommand(() => vm.Player.Next()) },
-            new NativeMenuItem("Предыдущий") { Command = new RelayCommand(() => vm.Player.Previous()) },
+            new NativeMenuItem(L.T("Следующий")) { Command = new RelayCommand(() => vm.Player.Next()) },
+            new NativeMenuItem(L.T("Предыдущий")) { Command = new RelayCommand(() => vm.Player.Previous()) },
             volume,
             new NativeMenuItemSeparator(),
-            new NativeMenuItem("Открыть HaPlayer") { Command = new RelayCommand(ShowWindow) },
-            new NativeMenuItem("Выход") { Command = new RelayCommand(Exit) },
+            new NativeMenuItem(L.T("Открыть HaPlayer")) { Command = new RelayCommand(ShowWindow) },
+            new NativeMenuItem(L.T("Выход")) { Command = new RelayCommand(Exit) },
         };
 
         _icon = new TrayIcon
@@ -59,7 +59,7 @@ public sealed class TrayController
         vm.Player.PropertyChanged += OnPlayerChanged;
         Update();
 
-        // Крестик: прячем в трей, а не выходим, если так настроено.
+        // Крестик прячет окно в трей, если так настроено.
         window.Closing += (_, e) =>
         {
             if (_exiting || !vm.Settings.CloseToTray) return;
@@ -100,9 +100,9 @@ public sealed class TrayController
     private void Update()
     {
         var t = _vm.Player.CurrentTrack;
-        var title = t == null ? "Ничего не играет" : $"{t.Title} — {t.Artist}";
+        var title = t == null ? L.T("Ничего не играет") : $"{t.Title} — {t.Artist}";
         _nowPlaying.Header = title;
-        _playPause.Header = _vm.Player.IsPlaying ? "Пауза" : "Играть";
+        _playPause.Header = _vm.Player.IsPlaying ? L.T("Пауза") : L.T("Играть");
         // У подсказки значка в трее Windows есть предел длины.
         var tip = t == null ? "HaPlayer" : $"{title}\nHaPlayer";
         _icon.ToolTipText = tip.Length > 120 ? tip[..117] + "…" : tip;
