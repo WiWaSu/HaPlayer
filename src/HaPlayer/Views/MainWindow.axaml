@@ -59,6 +59,8 @@
     <DataTemplate DataType="vm:TracksPageViewModel"><v:TracksView /></DataTemplate>
     <DataTemplate DataType="vm:CollectionPageViewModel"><v:CollectionView /></DataTemplate>
     <DataTemplate DataType="vm:SettingsPageViewModel"><v:SettingsView /></DataTemplate>
+    <DataTemplate DataType="vm:StatsPageViewModel"><v:StatsView /></DataTemplate>
+    <DataTemplate DataType="vm:YearsPageViewModel"><v:YearsView /></DataTemplate>
   </Window.DataTemplates>
 
   <LayoutTransformControl x:Name="Scaler">
@@ -103,6 +105,10 @@
               <TextBlock Text="{Binding UpdateText}" />
             </StackPanel>
           </Button>
+          <Button Classes="topround small" Classes.active="{Binding IsStatsActive}" Command="{Binding GoStatsCommand}"
+                  ToolTip.Tip="{ui:T 'Итоги'}" Margin="0,0,8,0">
+            <ui:Glyph Data="{x:Static ui:Icons.Stats}" Width="20" Height="20" />
+          </Button>
           <Button Classes="topround small" Classes.active="{Binding IsHistoryPanelOpen}" Command="{Binding ToggleHistoryPanelCommand}"
                   ToolTip.Tip="{ui:T 'История прослушивания'}" Margin="0,0,8,0">
             <ui:Glyph Data="{x:Static ui:Icons.History}" Width="20" Height="20" />
@@ -119,7 +125,28 @@
 
       <Border Grid.Row="1" Grid.Column="1" Classes="panel" ClipToBounds="True" Margin="0,0,0,8"
               IsVisible="{Binding !IsLibraryExpanded}">
-        <ContentControl Content="{Binding CurrentPage}" />
+        <Panel>
+          <ContentControl Content="{Binding CurrentPage}" />
+          <!-- Хлебные крошки: где мы находимся. Поверх шапки страницы, в левом верхнем углу. -->
+          <Border Classes="crumbs" IsVisible="{Binding HasCrumbs}">
+            <ItemsControl ItemsSource="{Binding Crumbs}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:Crumb">
+                  <StackPanel Orientation="Horizontal">
+                    <Button Classes="flat crumb" Command="{Binding GoCommand}" IsVisible="{Binding IsLink}">
+                      <TextBlock Classes="link" Text="{Binding Title}" MaxWidth="220" />
+                    </Button>
+                    <TextBlock Text="›" Classes="crumbsep" IsVisible="{Binding IsLink}" />
+                    <TextBlock Text="{Binding Title}" Classes="crumbnow" IsVisible="{Binding IsCurrent}" MaxWidth="320" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+        </Panel>
       </Border>
 
       <!-- Правая панель: одна из трёх -->
@@ -136,6 +163,34 @@
       <v:NowPlayingView Grid.Row="1" Grid.RowSpan="2" Grid.ColumnSpan="3" Margin="-8,0,-8,0"
                         Classes="sheet" Classes.open="{Binding IsNowPlayingOpen}" />
 
+      <!-- Палитра команд (Ctrl+K) -->
+      <Panel Grid.RowSpan="3" Grid.ColumnSpan="3" IsVisible="{Binding Palette.IsOpen}" Margin="-8,0">
+        <Border Background="#80000000" PointerPressed="OnPaletteBackdrop" />
+        <Border Classes="palette" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,90,0,0" Width="600">
+          <DockPanel>
+            <Panel DockPanel.Dock="Top">
+              <TextBox x:Name="PaletteBox" Classes="topsearch" Text="{Binding Palette.Query}"
+                       Watermark="{ui:T 'Трек, альбом, исполнитель или команда'}" />
+              <ui:Glyph Data="{x:Static ui:Icons.Search}" Width="20" Height="20" Foreground="{DynamicResource SubBrush}"
+                        HorizontalAlignment="Left" Margin="16,0,0,0" IsHitTestVisible="False" />
+            </Panel>
+            <ListBox Classes="plain" ItemsSource="{Binding Palette.Results}" SelectedIndex="{Binding Palette.SelectedIndex}"
+                     MaxHeight="420" Margin="0,8,0,0">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PaletteItem">
+                  <Grid ColumnDefinitions="36,*,Auto" Height="40" Background="Transparent" Tapped="OnPaletteItemTapped">
+                    <ui:Glyph Data="{Binding Icon}" Width="18" Height="18" Foreground="{DynamicResource SubBrush}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding Sub}" Classes="sub" FontSize="12" VerticalAlignment="Center"
+                               MaxWidth="220" Margin="12,0,8,0" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+        </Border>
+      </Panel>
+
       <!-- Эквалайзер: карточка над нижней панелью справа -->
       <v:EqualizerView Grid.Row="1" Grid.ColumnSpan="3" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                        Margin="0,0,8,8" Classes="pop" Classes.open="{Binding IsEqualizerOpen}" />
@@ -150,7 +205,7 @@
     </Border>
 
     <!-- Индикатор сканирования -->
-    <Border IsVisible="{Binding IsBusy}" Background="{DynamicResource InverseBrush}" CornerRadius="8" Padding="18,10"
+    <Border IsVisible="{Binding IsBusy}" Background="{DynamicResource InverseBrush}" CornerRadius="{DynamicResource R8}" Padding="18,10"
             HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,100"
             BoxShadow="0 8 24 0 #80000000">
       <TextBlock Text="{Binding BusyText}" Foreground="{DynamicResource InverseTextBrush}" FontWeight="SemiBold" />

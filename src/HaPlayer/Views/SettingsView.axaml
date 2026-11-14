@@ -23,7 +23,7 @@
     </Style>
     <Style Selector="Border.option">
       <Setter Property="Background" Value="{DynamicResource Ov0D}" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R8}" />
       <Setter Property="Padding" Value="16,12" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="Transparent" />
@@ -39,7 +39,7 @@
       <Setter Property="FontSize" Value="15" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Padding" Value="14,10" />
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R6}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
@@ -56,7 +56,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Padding" Value="10" />
       <Setter Property="Margin" Value="0,0,8,8" />
-      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R10}" />
       <Setter Property="BorderThickness" Value="2" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Width" Value="118" />
@@ -146,6 +146,11 @@
                 <TextBlock Text="{ui:T 'Проверять папки при запуске'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding RescanOnStart}" VerticalAlignment="Center" />
               </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding HasBlacklist}">
+                <TextBlock Text="{ui:T 'Не включать в подборки и перемешивание'}" Classes="label" />
+                <TextBlock Grid.Column="1" Text="{Binding BlacklistText}" Classes="sub" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <Button Grid.Column="2" Classes="pill dark" Content="{ui:T 'Очистить'}" Command="{Binding ClearBlacklistCommand}" />
+              </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="{ui:T 'Альбом и исполнитель только из тегов'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding StrictTags}" VerticalAlignment="Center"
@@ -200,6 +205,11 @@
                 <TextBlock Text="{ui:T 'Способ вывода'}" Classes="label" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Outputs}" SelectedItem="{Binding SelectedOutput}"
                           MinWidth="300" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Переход между треками'}" Classes="label" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding CrossfadeOptions}" SelectedIndex="{Binding CrossfadeIndex}"
+                          MinWidth="160" VerticalAlignment="Center" />
               </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Text="{ui:T 'Буфер'}" Classes="label" ToolTip.Tip="{ui:T 'Если звук заикается, увеличьте.'}" />
@@ -260,9 +270,9 @@
                   <DataTemplate x:DataType="vm:ChoiceOption">
                     <Button Classes="swatch" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}">
                       <StackPanel Spacing="8">
-                        <Border Width="64" Height="40" CornerRadius="6" Background="{Binding Swatch2}" HorizontalAlignment="Left"
+                        <Border Width="64" Height="40" CornerRadius="{DynamicResource R6}" Background="{Binding Swatch2}" HorizontalAlignment="Left"
                                 BorderBrush="{DynamicResource Ov33}" BorderThickness="1">
-                          <Border Width="40" Height="24" CornerRadius="4" Background="{Binding Swatch}" />
+                          <Border Width="40" Height="24" CornerRadius="{DynamicResource R4}" Background="{Binding Swatch}" />
                         </Border>
                         <TextBlock Text="{Binding Name}" FontSize="13" />
                       </StackPanel>
@@ -281,9 +291,29 @@
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}" SelectedIndex="{Binding LanguageIndex}"
                           MinWidth="140" VerticalAlignment="Center" />
               </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Text="{ui:T 'Плашка при смене трека'}" Classes="label" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding CornerOptions}" SelectedIndex="{Binding CornerIndex}"
+                          MinWidth="150" VerticalAlignment="Center" Margin="0,0,12,0" IsVisible="{Binding TrackToast}" />
+                <ToggleSwitch Grid.Column="2" IsChecked="{Binding TrackToast}" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Визуализатор'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowVisualizer}" VerticalAlignment="Center" />
+              </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="{ui:T 'Масштаб'}" Classes="label" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding ScaleOptions}" SelectedIndex="{Binding ScaleIndex}"
+                          MinWidth="140" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Плотность'}" Classes="label" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding DensityOptions}" SelectedIndex="{Binding DensityIndex}"
+                          MinWidth="140" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Скругления'}" Classes="label" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding RadiusOptions}" SelectedIndex="{Binding RadiusIndex}"
                           MinWidth="140" VerticalAlignment="Center" />
               </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
@@ -291,6 +321,25 @@
                 <ComboBox Grid.Column="1" ItemsSource="{Binding FontOptions}" SelectedIndex="{Binding FontIndex}"
                           MinWidth="140" VerticalAlignment="Center" />
               </Grid>
+            </StackPanel>
+            <StackPanel Classes="group">
+              <TextBlock Text="{ui:T 'Главная'}" Classes="title" />
+              <ItemsControl ItemsSource="{Binding HomeSections}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SettingsPageViewModel+HomeSection">
+                    <Grid Classes="row" ColumnDefinitions="*,Auto,Auto,Auto">
+                      <TextBlock Text="{Binding Name}" Classes="label" />
+                      <Button Grid.Column="1" Classes="icon" Command="{Binding UpCommand}" ToolTip.Tip="{ui:T 'Выше'}">
+                        <ui:Glyph Data="{x:Static ui:Icons.ChevronDown}" Width="16" Height="16" RenderTransform="rotate(180deg)" />
+                      </Button>
+                      <Button Grid.Column="2" Classes="icon" Command="{Binding DownCommand}" ToolTip.Tip="{ui:T 'Ниже'}">
+                        <ui:Glyph Data="{x:Static ui:Icons.ChevronDown}" Width="16" Height="16" />
+                      </Button>
+                      <ToggleSwitch Grid.Column="3" IsChecked="{Binding IsShown}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
             <StackPanel Classes="group">
               <TextBlock Text="{ui:T 'Список треков'}" Classes="title" />
@@ -301,6 +350,10 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="{ui:T 'Формат, частота, битрейт'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowTechInfo}" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Оценки от 1 до 5'}" Classes="label" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowRatings}" VerticalAlignment="Center" />
               </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="{ui:T 'Сколько раз слушал'}" Classes="label" />
@@ -465,7 +518,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:HotkeyRow">
                     <Grid ColumnDefinitions="140,*" Margin="0,4">
-                      <Border Background="{DynamicResource Ov1F}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                      <Border Background="{DynamicResource Ov1F}" CornerRadius="{DynamicResource R4}" Padding="8,3" HorizontalAlignment="Left">
                         <TextBlock Text="{Binding Keys}" FontSize="12" FontWeight="SemiBold" />
                       </Border>
                       <TextBlock Grid.Column="1" Text="{Binding Action}" Classes="label" />
@@ -480,7 +533,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:HotkeyRow">
                     <Grid ColumnDefinitions="140,*" Margin="0,4">
-                      <Border Background="{DynamicResource Ov1F}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                      <Border Background="{DynamicResource Ov1F}" CornerRadius="{DynamicResource R4}" Padding="8,3" HorizontalAlignment="Left">
                         <TextBlock Text="{Binding Keys}" FontSize="12" FontWeight="SemiBold" />
                       </Border>
                       <TextBlock Grid.Column="1" Text="{Binding Action}" Classes="label" />

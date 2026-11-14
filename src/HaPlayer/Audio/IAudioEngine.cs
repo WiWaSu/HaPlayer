@@ -1,4 +1,4 @@
-namespace HaPlayer.Audio;
+﻿namespace HaPlayer.Audio;
 
 /// <summary>
 /// Воспроизведение одного файла. Интерфейс не зависит от Windows:
@@ -37,4 +37,22 @@ public interface IAudioEngine : IDisposable
 
     /// <summary>Ошибка вывода звука во время воспроизведения. Может прийти не из UI-потока.</summary>
     event EventHandler<Exception>? PlaybackFailed;
+
+    /// <summary>
+    /// Заранее открывает следующий трек. Когда текущий кончится, движок перейдёт на него без паузы
+    /// (или с плавным переходом) и сообщит об этом через AdvancedToNext. null — следующего нет.
+    /// </summary>
+    void SetNext(string? path);
+
+    /// <summary>Движок сам перешёл на заранее открытый трек (путь к нему). Может прийти не из UI-потока.</summary>
+    event EventHandler<string>? AdvancedToNext;
+
+    /// <summary>Длительность плавного перехода между треками в секундах. 0 — переход без паузы и без наложения.</summary>
+    double CrossfadeSeconds { get; set; }
+
+    /// <summary>Частота отсчётов, которые отдаёт CopyRecentSamples.</summary>
+    int SampleRate { get; }
+
+    /// <summary>Последние звучавшие отсчёты (моно) для визуализатора.</summary>
+    void CopyRecentSamples(float[] dest);
 }

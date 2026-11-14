@@ -114,7 +114,7 @@ public static class Dialogs
             Background = HaPlayer.Ui.ThemeService.Brush("MenuBrush"),
             BorderBrush = HaPlayer.Ui.ThemeService.Brush("Ov1A"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = HaPlayer.Ui.ThemeService.Radius(12),
             MinWidth = 380,
             Child = new StackPanel
             {

@@ -5,7 +5,7 @@
              x:Class="HaPlayer.Views.EqualizerView"
              x:DataType="vm:MainViewModel">
   <!-- Плавающая карточка эквалайзера над нижней панелью -->
-  <Border Background="{DynamicResource InputBrush}" CornerRadius="12" Padding="20,16" BoxShadow="0 16 48 0 #B3000000"
+  <Border Background="{DynamicResource InputBrush}" CornerRadius="{DynamicResource R12}" Padding="20,16" BoxShadow="0 16 48 0 #B3000000"
           BorderBrush="{DynamicResource Ov14}" BorderThickness="1">
     <StackPanel Spacing="14">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">

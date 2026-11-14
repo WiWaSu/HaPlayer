@@ -29,7 +29,11 @@ public sealed partial class PlayerViewModel : ObservableObject
         _repeat = settings.Repeat;
         _engine.Volume = (float)(_volume / 100);
 
+        _engine.CrossfadeSeconds = settings.CrossfadeSeconds;
         _engine.TrackEnded += (_, _) => Dispatcher.UIThread.Post(() => Advance(auto: true));
+        // Движок сам перешёл на заранее открытый трек: обновляем экран и очередь, файл уже играет.
+        _engine.AdvancedToNext += (_, path) => Dispatcher.UIThread.Post(() => Advance(auto: true, enginePath: path));
+        QueueChanged += PrepareNext;
         _engine.PlaybackFailed += (_, _) => Dispatcher.UIThread.Post(OnTrackFailed);
 
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, (_, _) => Tick());
@@ -144,11 +148,65 @@ public sealed partial class PlayerViewModel : ObservableObject
         _settings.Shuffle = value;
         // Перемешивание включили или выключили посреди списка: играющий трек остаётся, остальное перестраивается.
         if (_index >= 0 && _index < _queue.Count) BuildOrder(_index);
+        PrepareNext();
     }
 
     partial void OnRepeatChanged(RepeatMode value)
     {
         _settings.Repeat = value;
+        PrepareNext();
+    }
+
+    /// <summary>Таймер сна остановил музыку «после этого трека».</summary>
+    public event Action? StoppedBySleepTimer;
+
+    /// <summary>Длительность плавного перехода, секунды. 0 — без паузы и без наложения.</summary>
+    public double CrossfadeSeconds
+    {
+        get => _engine.CrossfadeSeconds;
+        set
+        {
+            _engine.CrossfadeSeconds = value;
+            _settings.CrossfadeSeconds = value;
+        }
+    }
+
+    /// <summary>Таймер сна «после этого трека»: когда трек кончится, музыка остановится.</summary>
+    public bool StopAfterCurrent
+    {
+        get => _stopAfterCurrent;
+        set
+        {
+            _stopAfterCurrent = value;
+            PrepareNext();
+        }
+    }
+
+    private bool _stopAfterCurrent;
+
+    /// <summary>Множитель громкости для плавного затухания таймера сна: 1 — как обычно, 0 — тишина.</summary>
+    public void SetFade(double factor) =>
+        _engine.Volume = IsMuted ? 0 : (float)(Volume / 100 * Math.Clamp(factor, 0, 1));
+
+    /// <summary>Что заиграет после текущего трека, если ничего не трогать.</summary>
+    private TrackItem? PeekNext()
+    {
+        if (CurrentTrack == null || _stopAfterCurrent) return null;
+        if (Repeat == RepeatMode.One) return CurrentTrack;
+        if (_userQueue.Count > 0) return _userQueue[0];
+        var next = _pos + 1;
+        if (next >= 0 && next < _order.Count) return _queue[_order[next]];
+        // По кругу без перемешивания начинаем сначала. С перемешиванием новый круг случайный, его заранее не знаем.
+        if (Repeat == RepeatMode.All && !Shuffle && _order.Count > 0) return _queue[_order[0]];
+        return null;
+    }
+
+    /// <summary>Сообщает движку следующий трек, чтобы переход был без паузы.</summary>
+    private void PrepareNext()
+    {
+        if (CurrentTrack == null) return;
+        var next = PeekNext();
+        _engine.SetNext(next is { IsMissing: false } ? next.Path : null);
     }
 
     private void Tick()
@@ -213,7 +271,9 @@ public sealed partial class PlayerViewModel : ObservableObject
         _order = Enumerable.Range(0, _queue.Count).ToList();
         if (Shuffle && _queue.Count > 1 && start >= 0)
         {
-            _order.RemoveAt(start);
+            // Треки из чёрного списка в перемешивание не попадают. Если такой трек включили сами, он играет.
+            _order = _order.Where(i => i == start || !_queue[i].IsBlacklisted).ToList();
+            _order.Remove(start);
             for (var i = _order.Count - 1; i > 0; i--)
             {
                 var j = _rng.Next(i + 1);
@@ -260,19 +320,31 @@ public sealed partial class PlayerViewModel : ObservableObject
     /// <summary>Позиция для сохранения сессии.</summary>
     public double CurrentPosition => _engine.Position.TotalSeconds;
 
-    private void LoadAt(int pos)
+    private void LoadAt(int pos, string? enginePath = null)
     {
         _pos = pos;
         _index = _order[pos];
         _playingFromUserQueue = false;
-        LoadTrack(_queue[_index]);
+        LoadTrack(_queue[_index], enginePath);
         QueueChanged?.Invoke();
     }
 
-    private void LoadTrack(TrackItem track)
+    /// <summary>
+    /// Делает трек текущим. enginePath — файл, на который движок уже перешёл сам:
+    /// если это тот же трек, открывать его заново не нужно, он уже звучит.
+    /// </summary>
+    private void LoadTrack(TrackItem track, string? enginePath = null)
     {
         _listenedReported = false;
         CurrentTrack = track;
+        if (enginePath != null && string.Equals(track.Path, enginePath, StringComparison.OrdinalIgnoreCase))
+        {
+            Duration = _engine.Duration.TotalSeconds > 0 ? _engine.Duration.TotalSeconds : track.Model.DurationSeconds;
+            SetPositionSilently(_engine.Position.TotalSeconds);
+            IsPlaying = true;
+            _errorStreak = 0;
+            return;
+        }
         SetPositionSilently(0);
         try
         {
@@ -334,10 +406,25 @@ public sealed partial class PlayerViewModel : ObservableObject
     [RelayCommand]
     public void Next() => Advance(auto: false);
 
-    private void Advance(bool auto)
+    private void Advance(bool auto, string? enginePath = null)
     {
+        if (auto && _stopAfterCurrent)
+        {
+            _stopAfterCurrent = false;
+            Stop();
+            StoppedBySleepTimer?.Invoke();
+            return;
+        }
         if (auto && Repeat == RepeatMode.One && _errorStreak == 0 && CurrentTrack != null)
         {
+            if (enginePath != null)
+            {
+                // Движок уже начал тот же трек заново.
+                _listenedReported = false;
+                SetPositionSilently(_engine.Position.TotalSeconds);
+                PrepareNext();
+                return;
+            }
             _engine.Position = TimeSpan.Zero;
             _engine.Play();
             return;
@@ -349,7 +436,7 @@ public sealed partial class PlayerViewModel : ObservableObject
             var t = _userQueue[0];
             _userQueue.RemoveAt(0);
             _playingFromUserQueue = true;
-            LoadTrack(t);
+            LoadTrack(t, enginePath);
             QueueChanged?.Invoke();
             return;
         }
@@ -372,7 +459,7 @@ public sealed partial class PlayerViewModel : ObservableObject
             BuildOrder(Shuffle ? _rng.Next(_queue.Count) : 0);
             next = _pos;
         }
-        LoadAt(next);
+        LoadAt(next, enginePath);
     }
 
     [RelayCommand]
@@ -414,6 +501,49 @@ public sealed partial class PlayerViewModel : ObservableObject
         _userQueue.AddRange(tracks);
         QueueChanged?.Invoke();
         if (CurrentTrack == null) Advance(auto: false);
+    }
+
+    /// <summary>Всё, что прозвучит после текущего трека: ручная очередь, потом остаток контекста.</summary>
+    public List<TrackItem> Upcoming()
+    {
+        var list = new List<TrackItem>(_userQueue);
+        for (var p = _pos + 1; p >= 0 && p < _order.Count; p++) list.Add(_queue[_order[p]]);
+        return list;
+    }
+
+    /// <summary>
+    /// Заменяет всё, что звучит после текущего трека. Список становится ручной очередью,
+    /// а остаток контекста отбрасывается: так порядок после перетаскивания остаётся ровно таким, как на экране.
+    /// </summary>
+    private void SetUpcoming(List<TrackItem> list)
+    {
+        _userQueue.Clear();
+        _userQueue.AddRange(list);
+        if (_pos >= 0 && _pos < _order.Count - 1) _order.RemoveRange(_pos + 1, _order.Count - _pos - 1);
+        QueueChanged?.Invoke();
+    }
+
+    /// <summary>Очистить очередь: после текущего трека ничего не играет.</summary>
+    public void ClearUpcoming() => SetUpcoming([]);
+
+    /// <summary>Перетаскивание внутри «Далее в очереди».</summary>
+    public void MoveUpcoming(int from, int to)
+    {
+        var up = Upcoming();
+        if (from < 0 || from >= up.Count || from == to) return;
+        var t = up[from];
+        up.RemoveAt(from);
+        up.Insert(Math.Clamp(to, 0, up.Count), t);
+        SetUpcoming(up);
+    }
+
+    /// <summary>Убрать один трек из «Далее в очереди».</summary>
+    public void RemoveUpcoming(int index)
+    {
+        var up = Upcoming();
+        if (index < 0 || index >= up.Count) return;
+        up.RemoveAt(index);
+        SetUpcoming(up);
     }
 
     /// <summary>Что прозвучит дальше: сначала поставленное в очередь, потом продолжение контекста.</summary>

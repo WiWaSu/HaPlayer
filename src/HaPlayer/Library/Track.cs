@@ -18,6 +18,19 @@ public sealed class Track
     public int SampleRate { get; set; }
     public int Channels { get; set; }
 
+    /// <summary>Жанр из тега. Нужен «Радио по треку»; пусто, если тега нет или трек ещё не перечитан.</summary>
+    public string Genre { get; set; } = "";
+
+    /// <summary>Без потерь: FLAC, WAV, AIFF или ALAC (m4a с высоким битрейтом).</summary>
+    public bool IsLossless
+    {
+        get
+        {
+            var ext = System.IO.Path.GetExtension(Path).ToLowerInvariant();
+            return ext is ".flac" or ".wav" or ".aif" or ".aiff" || (ext == ".m4a" && Bitrate >= 600);
+        }
+    }
+
     /// <summary>Время изменения файла (UTC ticks). По нему повторное сканирование пропускает неизменённые файлы.</summary>
     public long ModifiedTicks { get; set; }
 

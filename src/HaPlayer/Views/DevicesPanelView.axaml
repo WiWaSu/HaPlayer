@@ -25,7 +25,7 @@
       <ScrollViewer>
         <StackPanel Spacing="20">
           <!-- Текущее устройство -->
-          <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="16,14" IsVisible="{Binding CurrentDevice, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="{DynamicResource R8}" Padding="16,14" IsVisible="{Binding CurrentDevice, Converter={x:Static ObjectConverters.IsNotNull}}">
             <Grid ColumnDefinitions="Auto,*">
               <ui:Glyph Data="{Binding CurrentDevice.Icon}" Width="24" Height="24" Foreground="{DynamicResource AccentBrush}"
                         VerticalAlignment="Center" />

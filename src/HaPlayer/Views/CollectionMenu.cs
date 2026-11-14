@@ -38,6 +38,41 @@ public static class CollectionMenu
             if (item is PlaylistItem p) items.Add(Item(L.T("Переименовать…"), () => main.RenamePlaylistAsync(p)));
         }
 
+        // Объединение, склеивание, разделение: только привязки HaPlayer, в строгом режиме их нет.
+        if (!main.Settings.StrictTags && item is ArtistItem artist)
+        {
+            var merge = new MenuItem { Header = L.T("Объединить с") };
+            var key = MainViewModel.NameKey(artist.Name);
+            foreach (var other in main.Artists.Where(a => a != artist)
+                         .OrderBy(a => MainViewModel.NameKey(a.Name) == key ? 0 : MainViewModel.NameKey(a.Name).Contains(key) || key.Contains(MainViewModel.NameKey(a.Name)) ? 1 : 2)
+                         .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).Take(40))
+                merge.Items.Add(Item(other.Name, () => main.MergeArtist(artist, other)));
+            if (merge.Items.Count > 0)
+            {
+                items.Add(new Separator());
+                items.Add(merge);
+            }
+        }
+        if (!main.Settings.StrictTags && item is AlbumItem album)
+        {
+            var glue = new MenuItem { Header = L.T("Склеить с") };
+            foreach (var other in main.Albums.Where(a => a != album)
+                         .OrderBy(a => string.Equals(a.Artist, album.Artist, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                         .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).Take(40))
+                glue.Items.Add(Item($"{other.Name} — {other.Artist}", () => main.GlueAlbum(album, other)));
+            items.Add(new Separator());
+            if (glue.Items.Count > 0) items.Add(glue);
+            if (album.Tracks.Select(t => Path.GetDirectoryName(t.Path)).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+                items.Add(Item(L.T("Разделить по папкам"), () => main.SplitAlbumByFolders(album)));
+            items.Add(Item(L.T("Заметка…"), () => main.EditNoteAsync("album", album.Key, album.Name)));
+        }
+        if (!main.Settings.StrictTags && item is AlbumItem or ArtistItem
+            && item.Tracks.Any(t => t.Model.UserAlbumKey != null || t.Model.UserArtist != null))
+            items.Add(Item(L.T("Вернуть как в тегах"), () => main.ResetAssignments(item.Tracks.ToList())));
+        if (item is AlbumItem or ArtistItem)
+            items.Add(Item(main.IsHiddenFromHome(item) ? L.T("Снова показывать на главной") : L.T("Не показывать на главной и в подборках"),
+                () => main.ToggleHiddenFromHome(item)));
+
         var delete = item switch
         {
             PlaylistItem => L.T("Удалить плейлист"),

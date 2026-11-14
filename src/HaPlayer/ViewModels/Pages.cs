@@ -13,6 +13,9 @@ public abstract class PageViewModel(MainViewModel main) : ObservableObject
     public IAsyncRelayCommand AddFolderCommand => Main.AddFolderCommand;
     public IAsyncRelayCommand AddFilesCommand => Main.AddFilesCommand;
 
+    /// <summary>Где была прокрутка, когда со страницы ушли. При возврате «Назад» список встаёт туда же.</summary>
+    public Avalonia.Vector ScrollOffset { get; set; }
+
     /// <summary>Плейлист, если страница его показывает. Нужен меню трека для пункта «Убрать из плейлиста».</summary>
     public virtual PlaylistItem? Playlist => null;
 }
@@ -67,7 +70,8 @@ public sealed class HomePageViewModel : PageViewModel
 {
     public HomePageViewModel(MainViewModel main) : base(main)
     {
-        Recent = main.RecentAlbums.Take(30).ToList();
+        Recent = main.RecentAlbums.Where(a => !main.IsHiddenFromHome(a)
+            && !main.Settings.HiddenFromHome.Contains("artist:" + ArtistItem.MakeKey(a.Artist))).Take(30).ToList();
         Smart = main.SmartPlaylists.Where(s => s.Tracks.Count > 0).ToList();
         Quick = Recent.Take(7).Cast<CollectionItem>().Prepend(main.Liked).ToList();
         Background = new LinearGradientBrush
@@ -90,17 +94,45 @@ public sealed class HomePageViewModel : PageViewModel
     public List<AlbumItem> Recent { get; }
     public List<SmartItem> Smart { get; }
     public bool HasSmart => Smart.Count > 0;
+
+    private int RowOf(string section)
+    {
+        var order = Main.Settings.HomeOrder;
+        var i = order.IndexOf(section);
+        return (i < 0 ? order.Count : i) + 1;
+    }
+
+    private bool Shown(string section) => !Main.Settings.HomeHidden.Contains(section);
+
+    public int QuickRow => RowOf("quick");
+    public int SmartRow => RowOf("smart");
+    public int RecentRow => RowOf("recent");
+    public bool ShowQuick => Shown("quick");
+    public bool ShowSmart => Shown("smart") && HasSmart;
+    public bool ShowRecent => Shown("recent");
     public IBrush Background { get; }
 }
 
 public sealed class TracksPageViewModel : PageViewModel
 {
-    public TracksPageViewModel(MainViewModel main) : base(main)
+    public TracksPageViewModel(MainViewModel main, string filter = "") : base(main)
     {
-        var list = main.Library;
+        Filter = filter;
+        IReadOnlyList<TrackItem> list = filter switch
+        {
+            "lossless" => main.Library.Where(t => t.Model.IsLossless).ToList(),
+            "new" => main.Library.Where(t => t.Model.Year >= 2020).ToList(),
+            "rated" => main.Library.Where(t => t.Rating >= 4).ToList(),
+            "missing" => main.Library.Where(t => t.IsMissing).ToList(),
+            "today" => main.Library.Where(t => t.Model.AddedTicks >= DateTime.Today.ToUniversalTime().Ticks).ToList(),
+            "week" => main.Library.Where(t => t.Model.AddedTicks >= DateTime.Today.AddDays(-6).ToUniversalTime().Ticks).ToList(),
+            _ => main.Library,
+        };
         Rows = main.MakeRows(list, L.T("Все треки"), (_, i) => (i + 1).ToString(), t => t.AlbumName, true);
         var total = list.Sum(t => t.Model.DurationSeconds);
         Summary = $"{Format.Tracks(list.Count)}, {Format.Total(total)}";
+        SetFilterCommand = new RelayCommand<string>(f => main.ShowTracks(f == Filter ? "" : f ?? ""));
+        RemoveMissingCommand = new AsyncRelayCommand(main.RemoveMissingAsync);
         PlayAllCommand = new RelayCommand(() => main.PlayOrToggle(list, 0, L.T("Все треки")));
         ShufflePlayCommand = new RelayCommand(() =>
         {
@@ -112,6 +144,20 @@ public sealed class TracksPageViewModel : PageViewModel
     }
 
     public bool HasMusic => Main.Library.Count > 0;
+
+    /// <summary>Быстрый фильтр: lossless, new (2020+), rated (4–5 звёзд), missing (нет файла). Пусто — все треки.</summary>
+    public string Filter { get; }
+    public bool IsLossless => Filter == "lossless";
+    public bool IsNew => Filter == "new";
+    public bool IsRated => Filter == "rated";
+    public bool IsMissing => Filter == "missing";
+    public bool IsToday => Filter == "today";
+    public bool IsWeek => Filter == "week";
+    public bool ShowRatedChip => Main.Settings.ShowRatings;
+    public bool ShowMissingChip => Main.MissingCount > 0 || IsMissing;
+    public bool CanRemoveMissing => IsMissing && Rows.Count > 0;
+    public IRelayCommand<string> SetFilterCommand { get; }
+    public IAsyncRelayCommand RemoveMissingCommand { get; }
     public List<TrackRow> Rows { get; }
     public string Summary { get; }
     public IBrush HeaderBrush { get; }
@@ -259,20 +305,24 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     {
         Item = item;
         var list = item.Tracks;
+        var playList = item is FolderItem folder ? folder.AllTracks : list;
         var isAlbum = item is AlbumItem;
 
         Rows = main.MakeRows(list, item.Name,
             (t, i) => isAlbum && t.Model.TrackNo > 0 ? t.Model.TrackNo.ToString() : (i + 1).ToString(),
             t => isAlbum ? "" : t.AlbumName,
-            !isAlbum);
+            !isAlbum,
+            item is PlaylistItem pl ? t => main.IsPinnedIn(pl, t) : null);
+        Note = item is AlbumItem ? main.Note("album", item.Key) : "";
 
         var total = list.Sum(t => t.Model.DurationSeconds);
-        var stats = list.Count > 0 ? $"{Format.Tracks(list.Count)}, {Format.Total(total)}" : "пока пусто";
+        var stats = list.Count > 0 ? $"{Format.Tracks(list.Count)}, {Format.Total(total)}" : L.T("пока пусто");
         (KindLabel, Owner, Meta) = item switch
         {
             AlbumItem a => (L.T("Альбом"), a.Artist, (a.Year > 0 ? $" • {a.Year}" : "") + $" • {stats}"),
             ArtistItem => (L.T("Исполнитель"), "", stats),
             SmartItem s => (L.T("Подборка"), s.Description, " • " + stats),
+            FolderItem f => (L.T("Папка"), "", " • " + L.F("{0} внутри", Format.Tracks(f.AllTracks.Count))),
             _ => (L.T("Плейлист"), "", stats),
         };
 
@@ -280,10 +330,18 @@ public sealed partial class CollectionPageViewModel : PageViewModel
         ExportCommand = new AsyncRelayCommand(() => main.ExportM3uAsync(item));
         ShufflePlayCommand = new RelayCommand(() =>
         {
-            if (list.Count == 0) return;
+            if (playList.Count == 0) return;
             main.Player.Shuffle = true;
-            main.Player.PlayList(list, Random.Shared.Next(list.Count), item.Name);
+            main.Player.PlayList(playList, Random.Shared.Next(playList.Count), item.Name);
         });
+        QueueCommand = new RelayCommand(() => main.Player.AddToQueue(playList));
+        LikeAllCommand = new RelayCommand(() =>
+        {
+            // Всё уже в любимых — убираем, иначе добавляем недостающие.
+            main.ToggleLike(AllLiked ? list : list.Where(t => !t.IsLiked).ToList());
+            OnPropertyChanged(nameof(AllLiked));
+        });
+        if (item is ArtistItem) ArtistTab = OwnAlbums.Count > 0 ? 0 : 1;
         AddSongsCommand = new AsyncRelayCommand(() => main.AddSongsFromDiskAsync(item));
         ChangePhotoCommand = new AsyncRelayCommand(() => main.ChangePhotoAsync(item));
         RenameCommand = new AsyncRelayCommand(() => item is PlaylistItem p ? main.RenamePlaylistAsync(p) : Task.CompletedTask);
@@ -308,6 +366,22 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     public CollectionItem Item { get; }
     public override PlaylistItem? Playlist => Item as PlaylistItem;
 
+    /// <summary>Заметка к альбому. Пусто — заметки нет.</summary>
+    public string Note { get; }
+    public bool HasNote => Note.Length > 0;
+
+    /// <summary>Трек, к которому нужно прокрутить и выделить («Показать в медиатеке»). Страница забирает его один раз.</summary>
+    public TrackItem? PendingReveal { get; set; }
+
+    public event Action<TrackItem>? RevealRequested;
+
+    public void Reveal(TrackItem track)
+    {
+        if (IsArtist) ArtistTab = 1;
+        PendingReveal = track;
+        RevealRequested?.Invoke(track);
+    }
+
     public string KindLabel { get; }
     public string Owner { get; }
     public string Meta { get; }
@@ -316,10 +390,10 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     public bool IsArtist => Item is ArtistItem;
 
     /// <summary>
-    /// Альбомы исполнителя для страницы исполнителя: те, где поёт он сам, от новых к старым.
-    /// Сборники, где у него один трек, тоже попадают: так видно, где ещё он есть.
+    /// Все альбомы, где есть исполнитель, от новых к старым. Свои — где он исполнитель альбома
+    /// или поёт больше половины треков; остальные попадают в «Появляется в».
     /// </summary>
-    public List<AlbumItem> ArtistAlbums => _artistAlbums ??= Item is ArtistItem artist
+    private List<AlbumItem> ArtistAlbums => _artistAlbums ??= Item is ArtistItem artist
         ? Main.Albums
             .Where(a => a.Tracks.Any(t => ArtistItem.MakeKey(t.Artist) == artist.Key))
             .OrderByDescending(a => a.Year)
@@ -328,15 +402,51 @@ public sealed partial class CollectionPageViewModel : PageViewModel
         : [];
 
     private List<AlbumItem>? _artistAlbums;
+    private List<AlbumItem>? _own;
+    private List<AlbumItem>? _appears;
 
-    public bool HasArtistAlbums => ArtistAlbums.Count > 0;
+    private bool IsOwn(AlbumItem a) =>
+        ArtistItem.MakeKey(a.Artist) == Item.Key
+        || a.Tracks.Count(t => ArtistItem.MakeKey(t.Artist) == Item.Key) * 2 > a.Tracks.Count;
+
+    public List<AlbumItem> OwnAlbums => _own ??= ArtistAlbums.Where(IsOwn).ToList();
+    public List<AlbumItem> AppearsOn => _appears ??= ArtistAlbums.Where(a => !IsOwn(a)).ToList();
+
+    /// <summary>Вкладка страницы исполнителя: 0 альбомы, 1 все треки, 2 «Появляется в».</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOwnAlbums), nameof(ShowAppearsOn), nameof(ShowTrackList))]
+    private int _artistTab = 1;
+
+    public bool HasArtistAlbums => OwnAlbums.Count > 0;
+    public bool HasAppearsOn => AppearsOn.Count > 0;
+
+    /// <summary>Вложенные папки на странице папки.</summary>
+    public List<FolderItem> SubFolders => _subFolders ??= Item is FolderItem f ? Main.SubFolders(f) : [];
+    private List<FolderItem>? _subFolders;
+    public bool HasSubFolders => SubFolders.Count > 0;
+    public bool ShowOwnAlbums => IsArtist && ArtistTab == 0;
+    public bool ShowAppearsOn => IsArtist && ArtistTab == 2;
+    public bool ShowTrackList => HasTracks && (!IsArtist || ArtistTab == 1);
+    public List<AlbumItem> TabAlbums => ArtistTab == 2 ? AppearsOn : OwnAlbums;
+
+    [RelayCommand]
+    private void SelectArtistTab(string tab)
+    {
+        ArtistTab = int.Parse(tab);
+        OnPropertyChanged(nameof(TabAlbums));
+    }
+
+    public bool AllLiked => Item.Tracks.Count > 0 && Item.Tracks.All(t => t.IsLiked);
+    public bool CanLikeAll => !Item.IsLikedCollection && HasTracks;
+    public IRelayCommand QueueCommand { get; }
+    public IRelayCommand LikeAllCommand { get; }
     public bool IsPlaylist => Item is PlaylistItem;
-    public bool CanChangePhoto => !Item.IsLikedCollection && Item is not SmartItem;
+    public bool CanChangePhoto => !Item.IsLikedCollection && Item is not (SmartItem or FolderItem);
 
     /// <summary>«Добавить» у альбома и исполнителя меняет привязку, поэтому в строгом режиме скрыта.</summary>
     public bool CanAddSongs => Item switch
     {
-        SmartItem => false,
+        SmartItem or FolderItem => false,
         AlbumItem or ArtistItem => !Main.Settings.StrictTags,
         _ => true,
     };
@@ -344,7 +454,7 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     public IAsyncRelayCommand ExportCommand { get; private set; } = null!;
     public bool HasTracks => Rows.Count > 0;
     public bool ShowAlbumColumn => Item is not AlbumItem;
-    public CornerRadius CoverRadius => IsArtist ? new CornerRadius(116) : new CornerRadius(4);
+    public CornerRadius CoverRadius => IsArtist ? new CornerRadius(116) : HaPlayer.Ui.ThemeService.Radius(4);
 
     public string EmptyText => Item switch
     {

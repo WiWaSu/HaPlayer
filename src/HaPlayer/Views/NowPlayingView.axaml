@@ -31,7 +31,19 @@
     <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#FFFFFF" />
   </UserControl.Resources>
   <!-- «Сейчас играет» на весь экран, как в мобильном приложении: большая обложка, управление и очередь -->
-  <Border Background="{Binding NowPlayingBrush}">
+  <Panel>
+  <Border Background="{Binding NowPlayingBrush}" />
+  <!-- Размытая обложка поверх градиента: фон «дышит» цветами альбома -->
+  <Image Source="{Binding Player.CurrentTrack.Album.Art}" Stretch="UniformToFill" Opacity="0.38"
+         IsHitTestVisible="False" ClipToBounds="True">
+    <Image.Effect>
+      <BlurEffect Radius="90" />
+    </Image.Effect>
+  </Image>
+  <Border Background="#59000000" IsHitTestVisible="False" />
+  <ui:SpectrumView VerticalAlignment="Bottom" Height="150" Opacity="0.32" Bars="64" Margin="0,0,0,0"
+                   BarBrush="White" IsVisible="{Binding ShowVisualizer}" />
+  <Border>
     <Grid RowDefinitions="Auto,*" Margin="24,8,24,24">
 
       <!-- Верх: закрыть и откуда играет -->
@@ -44,15 +56,24 @@
                      Foreground="#B3FFFFFF" HorizontalAlignment="Center" />
           <TextBlock Text="{Binding Player.QueueTitle}" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
         </StackPanel>
-        <Panel Grid.Column="2" Width="48" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <Button Classes="icon large hoverbg" Classes.on="{Binding IsLyricsOpen}" Command="{Binding ToggleLyricsCommand}"
+                  ToolTip.Tip="{ui:T 'Текст песни'}">
+            <ui:Glyph Data="{x:Static ui:Icons.Lyrics}" Width="22" Height="22" />
+          </Button>
+          <Button Classes="icon large hoverbg" Classes.on="{Binding IsImmersive}" Command="{Binding ToggleImmersiveCommand}"
+                  ToolTip.Tip="{ui:T 'Погружение'}">
+            <ui:Glyph Data="{x:Static ui:Icons.Immersive}" Width="22" Height="22" />
+          </Button>
+        </StackPanel>
       </Grid>
 
       <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,16,0,0">
 
         <!-- Обложка и управление -->
-        <Grid RowDefinitions="*,Auto" MaxWidth="560" Margin="24,0">
+        <Grid RowDefinitions="*,Auto" MaxWidth="{Binding CoverMaxWidth}" Margin="24,0">
           <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Margin="0,0,0,28">
-            <ui:CoverView Width="520" Height="520" CornerRadius="10" Source="{Binding Player.CurrentTrack.Album.Art}"
+            <ui:CoverView Width="{Binding CoverSize}" Height="{Binding CoverSize}" CornerRadius="{DynamicResource R10}" Source="{Binding Player.CurrentTrack.Album.Art}"
                           BoxShadow="0 24 64 0 #99000000" />
           </Viewbox>
 
@@ -123,12 +144,46 @@
           </StackPanel>
         </Grid>
 
-        <!-- Далее в очереди -->
-        <Border Grid.Column="1" Classes="npqueue" Width="340" Background="#33000000" CornerRadius="12" Padding="8,16" Margin="16,0,0,0">
+        <!-- Справа: текст песни или очередь. В погружении и на узком окне колонки нет. -->
+        <Panel Grid.Column="1" Classes="npqueue">
+        <Panel IsVisible="{Binding !IsImmersive}">
+        <Border Width="420" Background="#33000000" CornerRadius="{DynamicResource R12}" Padding="20,20" Margin="16,0,0,0"
+                IsVisible="{Binding IsLyricsOpen}">
+          <Panel>
+            <ItemsControl ItemsSource="{Binding LyricWindow}" VerticalAlignment="Center" IsVisible="{Binding HasSyncedLyrics}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LyricRow">
+                  <TextBlock Text="{Binding Text}" FontSize="24" FontWeight="Bold" TextWrapping="Wrap" TextTrimming="None"
+                             Margin="0,8" Opacity="{Binding Opacity}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ScrollViewer IsVisible="{Binding HasPlainLyrics}">
+              <TextBlock Text="{Binding LyricsPlain}" FontSize="18" FontWeight="SemiBold" LineHeight="30"
+                         TextWrapping="Wrap" TextTrimming="None" />
+            </ScrollViewer>
+            <StackPanel IsVisible="{Binding !HasLyrics}" VerticalAlignment="Center" Spacing="8">
+              <TextBlock Text="{ui:T 'Текста нет'}" FontSize="22" FontWeight="Bold" />
+              <TextBlock Text="{ui:T 'Подойдёт файл .lrc с тем же именем рядом с треком.'}" FontSize="14"
+                         Foreground="#B3FFFFFF" TextWrapping="Wrap" />
+            </StackPanel>
+          </Panel>
+        </Border>
+        <Border Width="340" Background="#33000000" CornerRadius="{DynamicResource R12}" Padding="8,16" Margin="16,0,0,0"
+                IsVisible="{Binding !IsLyricsOpen}">
           <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="{ui:T 'Далее в очереди'}" FontSize="16" FontWeight="Bold" Margin="12,0,12,12" />
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,0,4,12">
+              <TextBlock Text="{ui:T 'Далее в очереди'}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="icon" Command="{Binding SaveQueueAsPlaylistCommand}" ToolTip.Tip="{ui:T 'Сохранить очередь как плейлист'}">
+                <ui:Glyph Data="{x:Static ui:Icons.PlaylistAdd}" Width="16" Height="16" />
+              </Button>
+              <Button Grid.Column="2" Classes="icon" Command="{Binding ClearQueueCommand}" ToolTip.Tip="{ui:T 'Очистить очередь'}"
+                      IsEnabled="{Binding !IsQueueEnd}">
+                <ui:Glyph Data="{x:Static ui:Icons.Delete}" Width="16" Height="16" />
+              </Button>
+            </Grid>
             <ScrollViewer>
-              <ItemsControl ItemsSource="{Binding UpNext}">
+              <ItemsControl x:Name="UpNextList" ItemsSource="{Binding UpNext}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:UpNextItem">
                     <Button Classes="card" Width="NaN" HorizontalAlignment="Stretch" Padding="8" Margin="0"
@@ -147,7 +202,10 @@
             </ScrollViewer>
           </DockPanel>
         </Border>
+        </Panel>
+        </Panel>
       </Grid>
     </Grid>
   </Border>
+  </Panel>
 </UserControl>

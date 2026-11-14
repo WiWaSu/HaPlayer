@@ -34,7 +34,8 @@ public sealed class CoverView : Border
     public CoverView()
     {
         Background = PlaceholderBrush;
-        CornerRadius = new CornerRadius(4);
+        // Скругление по умолчанию следует настройке «Скругления».
+        Bind(CornerRadiusProperty, new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("R4"));
         ClipToBounds = true;
         Child = new Panel { Children = { _icon, _image } };
     }

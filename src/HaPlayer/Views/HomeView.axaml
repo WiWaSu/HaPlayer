@@ -10,9 +10,10 @@
 
     <ScrollViewer IsVisible="{Binding HasMusic}">
       <Border Background="{Binding Background}">
-        <StackPanel Margin="24,24,16,24">
-          <TextBlock Text="{Binding Greeting}" FontSize="32" FontWeight="ExtraBold" Margin="0,16,0,24" />
-
+        <Grid Margin="24,24,16,24" RowDefinitions="Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Text="{Binding Greeting}" FontSize="32" FontWeight="ExtraBold" Margin="0,16,0,24" />
+          <!-- Разделы главной: порядок и видимость задаются в «Настройки → Оформление → Главная» -->
+          <StackPanel Grid.Row="{Binding QuickRow}" IsVisible="{Binding ShowQuick}">
           <ItemsControl ItemsSource="{Binding Quick}" Margin="0,0,0,32">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><UniformGrid Classes="quick" Columns="4" /></ItemsPanelTemplate>
@@ -35,7 +36,8 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-
+          </StackPanel>
+          <StackPanel Grid.Row="{Binding SmartRow}" IsVisible="{Binding ShowSmart}">
           <!-- Подборки, которые плеер собирает сам -->
           <StackPanel IsVisible="{Binding HasSmart}" Margin="0,0,0,24">
             <TextBlock Text="{ui:T 'Подборки'}" Classes="h2" Margin="0,0,0,12" />
@@ -46,9 +48,9 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:SmartItem">
                   <Button Classes="card" Command="{Binding OpenCommand}">
-                    <StackPanel Spacing="4" Width="164">
+                    <StackPanel Spacing="4">
                       <Panel Margin="0,0,0,8">
-                        <ui:CoverView Width="164" Height="164" CornerRadius="6" Badge="{Binding Badge}" />
+                        <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Badge="{Binding Badge}" />
                         <Button Classes="primary small float" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                 Width="48" Height="48" CornerRadius="24" Margin="0,0,8,8"
                                 Command="{Binding PlayCommand}">
@@ -63,7 +65,8 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </StackPanel>
-
+          </StackPanel>
+          <StackPanel Grid.Row="{Binding RecentRow}" IsVisible="{Binding ShowRecent}">
           <TextBlock Text="{ui:T 'Недавно добавленные'}" Classes="h2" Margin="0,0,0,12" />
           <ItemsControl ItemsSource="{Binding Recent}" Margin="-12,0,0,0">
             <ItemsControl.ItemsPanel>
@@ -74,7 +77,7 @@
                 <Button Classes="card" Command="{Binding OpenCommand}">
                   <StackPanel Spacing="4">
                     <Panel Margin="0,0,0,8">
-                      <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}"
+                      <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}"
                                     BoxShadow="0 8 24 0 #80000000" />
                       <Button Classes="primary small float" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                               Width="48" Height="48" CornerRadius="24" Margin="0,0,8,8"
@@ -89,7 +92,8 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-        </StackPanel>
+          </StackPanel>
+        </Grid>
       </Border>
     </ScrollViewer>
   </Panel>

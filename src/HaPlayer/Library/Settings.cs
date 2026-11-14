@@ -83,6 +83,9 @@ public sealed class Settings
     /// <summary>Проверять новые версии на GitHub при запуске. Сеть без спроса не трогаем, поэтому выключено.</summary>
     public bool CheckUpdates { get; set; }
 
+    /// <summary>Вопрос «Проверять обновления?» уже задан. Задаётся один раз, при первом запуске 1.8 и новее.</summary>
+    public bool UpdatesAsked { get; set; }
+
     /// <summary>Свой акцентный цвет (#RRGGBB) поверх палитры. Пусто — цвет палитры.</summary>
     public string? CustomAccent { get; set; }
 
@@ -103,6 +106,45 @@ public sealed class Settings
 
     /// <summary>Шрифт интерфейса: Inter (встроенный), Segoe UI или Bahnschrift.</summary>
     public string UiFont { get; set; } = "Inter";
+
+    /// <summary>Сила скруглений: 1 обычные, 0.5 меньше, 0 без скруглений.</summary>
+    public double UiRadius { get; set; } = 1;
+
+    /// <summary>Плотный вид: меньше обложки, шапки и отступы, строки списка компактные.</summary>
+    public bool Dense { get; set; }
+
+    /// <summary>Оценки треков от 1 до 5: звёзды в списке и пункт в меню трека. По умолчанию выключено.</summary>
+    public bool ShowRatings { get; set; }
+
+    /// <summary>Жанры всех треков уже прочитаны (однократный проход после обновления до 1.8).</summary>
+    public bool GenresRead { get; set; }
+
+    /// <summary>Плавный переход между треками, секунды. 0 — без паузы и без наложения.</summary>
+    public double CrossfadeSeconds { get; set; }
+
+    /// <summary>Визуализатор в «Сейчас играет» и мини-плеере.</summary>
+    public bool ShowVisualizer { get; set; } = true;
+
+    /// <summary>Порядок разделов главной: quick (плитки), smart (подборки), recent (недавно добавленные).</summary>
+    public List<string> HomeOrder { get; set; } = ["quick", "smart", "recent"];
+
+    /// <summary>Скрытые разделы главной.</summary>
+    public List<string> HomeHidden { get; set; } = [];
+
+    /// <summary>Альбомы и исполнители, которые не показываются на главной и в подборках («album:ключ», «artist:ключ»).</summary>
+    public List<string> HiddenFromHome { get; set; } = [];
+
+    /// <summary>Треки, которые не попадают в подборки, радио и перемешивание (пути файлов).</summary>
+    public List<string> Blacklist { get; set; } = [];
+
+    /// <summary>Закреплённые вверху плейлиста треки: «id плейлиста|путь», в порядке закрепления.</summary>
+    public List<string> PinnedTracks { get; set; } = [];
+
+    /// <summary>Плашка при смене трека, как в Winamp. По умолчанию выключена.</summary>
+    public bool TrackToast { get; set; }
+
+    /// <summary>Угол экрана для плашки: bottomright, topright, bottomleft, topleft.</summary>
+    public string TrackToastCorner { get; set; } = "bottomright";
 
     // Окно
     public double WindowWidth { get; set; }

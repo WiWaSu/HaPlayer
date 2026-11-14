@@ -31,6 +31,14 @@ public sealed partial class TrackItem(Track model) : ObservableObject
     /// <summary>Файла нет на месте: диск отключён, файл удалён или переименован.</summary>
     [ObservableProperty] private bool _isMissing;
 
+    /// <summary>В чёрном списке: не попадает в подборки, радио и перемешивание.</summary>
+    [ObservableProperty] private bool _isBlacklisted;
+
+    /// <summary>Оценка 1–5, 0 — без оценки.</summary>
+    [ObservableProperty] private int _rating;
+
+    public string Stars => Rating > 0 ? new string('★', Rating) + new string('☆', 5 - Rating) : "";
+
     /// <summary>Сколько раз трек дослушали (по истории) и когда в последний раз, UTC ticks.</summary>
     public int PlayCount { get; set; }
     public long LastPlayedTicks { get; set; }
@@ -132,12 +140,13 @@ public abstract partial class CollectionItem : ObservableObject
 
     /// <summary>Исполнители в медиатеке с круглым фото.</summary>
     public bool IsArtist => this is ArtistItem;
-    public Avalonia.CornerRadius ListCornerRadius => IsArtist ? new Avalonia.CornerRadius(24) : new Avalonia.CornerRadius(4);
+    public Avalonia.CornerRadius ListCornerRadius => IsArtist ? new Avalonia.CornerRadius(24) : HaPlayer.Ui.ThemeService.Radius(4);
 
     /// <summary>Из этой коллекции сейчас играет очередь: название подсвечивается акцентом.</summary>
     [ObservableProperty] private bool _isNowPlaying;
 
-    public string? CoverSource => CustomImage ?? (Tracks.Count > 0 ? Tracks[0].Path : null);
+    public string? CoverSource => CustomImage ?? (Tracks.Count > 0 ? Tracks[0].Path
+        : this is FolderItem f && f.AllTracks.Count > 0 ? f.AllTracks[0].Path : null);
 
     public IRelayCommand OpenCommand { get; }
     public IRelayCommand PlayCommand { get; }
@@ -252,6 +261,39 @@ public sealed class SmartItem(string key, string name, string description, List<
     public override Avalonia.Media.Geometry? Badge => HaPlayer.Ui.Icons.Sparkles;
 }
 
+/// <summary>
+/// Папка на диске: треки, лежащие прямо в ней, и вложенные папки. «Играть» включает всё, что внутри, вместе с вложенными.
+/// </summary>
+public sealed class FolderItem(string path, List<TrackItem> tracks, List<TrackItem> all,
+    CoverService covers, Action<CollectionItem> open, Action<CollectionItem> play)
+    : CollectionItem(covers, null, open, play)
+{
+    public string Path { get; } = path;
+    public override string Kind => "folder";
+    public override string Key => Path;
+    public override string Name { get; } = System.IO.Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } n ? n : path;
+    public override List<TrackItem> Tracks { get; } = tracks;
+
+    /// <summary>Все треки внутри, включая вложенные папки, по порядку путей.</summary>
+    public List<TrackItem> AllTracks { get; } = all;
+
+    public override string Subtitle => L.F("Папка • {0}", Format.Tracks(AllTracks.Count));
+    public string CardSubtitle => Format.Tracks(AllTracks.Count);
+    public override Avalonia.Media.Geometry? Badge => AllTracks.Count == 0 ? HaPlayer.Ui.Icons.Folder : null;
+}
+
+/// <summary>Звено хлебных крошек: название и куда ведёт. У последнего звена (текущая страница) перехода нет.</summary>
+public sealed class Crumb(string title, Action? go)
+{
+    public string Title { get; } = title;
+    public bool IsLink => go != null;
+    public bool IsCurrent => go == null;
+    public IRelayCommand GoCommand { get; } = new RelayCommand(() => go?.Invoke());
+}
+
+/// <summary>Строка текста песни на экране «Сейчас играет».</summary>
+public sealed record LyricRow(string Text, bool IsCurrent, double Opacity);
+
 /// <summary>Строка истории прослушивания: трек и когда его слушали.</summary>
 public sealed class HistoryItem(TrackItem track, DateTime playedAtLocal, Action play)
 {
@@ -295,9 +337,13 @@ public sealed class DeviceItem(HaPlayer.Audio.AudioDevice device, bool isCurrent
 }
 
 /// <summary>Трек в списке «Далее в очереди» на экране «Сейчас играет».</summary>
-public sealed class UpNextItem(TrackItem track, bool queued, Action play)
+public sealed class UpNextItem(TrackItem track, bool queued, Action play, int index = 0, Action<int>? remove = null)
 {
     public TrackItem Track { get; } = track;
+
+    /// <summary>Место в «Далее в очереди»: по нему работают перетаскивание и удаление.</summary>
+    public int Index { get; } = index;
+    public IRelayCommand RemoveCommand { get; } = new RelayCommand(() => remove?.Invoke(index));
 
     /// <summary>Поставлен вручную через «Играть следующим» или «В очередь».</summary>
     public bool Queued { get; } = queued;
@@ -320,8 +366,11 @@ public sealed class LikedItem(List<TrackItem> tracks, CoverService covers, Actio
 
 /// <summary>Строка в таблице треков: номер зависит от списка, поэтому хранится отдельно от TrackItem.</summary>
 public sealed class TrackRow(int index, string number, TrackItem item, string secondary, bool showCover,
-    Action play, Action toggle, Action like, TrackRowOptions? options = null)
+    Action play, Action toggle, Action like, TrackRowOptions? options = null, bool pinned = false)
 {
+    /// <summary>Закреплён вверху плейлиста: у названия булавка.</summary>
+    public bool IsPinned { get; } = pinned;
+
     private readonly TrackRowOptions _o = options ?? TrackRowOptions.Default;
 
     public int Index { get; } = index;
@@ -341,11 +390,12 @@ public sealed class TrackRow(int index, string number, TrackItem item, string se
             var parts = new List<string>(2);
             if (_o.ShowTech) parts.Add(Item.TechText);
             if (_o.ShowPlays && Item.PlayCount > 0) parts.Add($"{Item.PlayCount} ×");
+            if (_o.ShowRatings && Item.Rating > 0) parts.Add(Item.Stars);
             return string.Join("  ", parts);
         }
     }
 
-    public bool HasExtra => _o.ShowTech || _o.ShowPlays;
+    public bool HasExtra => _o.ShowTech || _o.ShowPlays || _o.ShowRatings;
 
     /// <summary>Двойной клик: играть с этого трека.</summary>
     public IRelayCommand PlayCommand { get; } = new RelayCommand(play);
@@ -357,7 +407,7 @@ public sealed class TrackRow(int index, string number, TrackItem item, string se
 }
 
 /// <summary>Вид строк в списках треков, из настроек.</summary>
-public sealed record TrackRowOptions(bool Compact, bool ShowTech, bool ShowPlays)
+public sealed record TrackRowOptions(bool Compact, bool ShowTech, bool ShowPlays, bool ShowRatings = false)
 {
     public static readonly TrackRowOptions Default = new(false, false, false);
 }

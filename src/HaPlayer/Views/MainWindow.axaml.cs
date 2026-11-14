@@ -45,7 +45,10 @@ public partial class MainWindow : Window, IDialogService
         base.OnDataContextChanged(e);
         if (Vm == null) return;
         Vm.Dialogs = this;
+        Vm.Notify = ShowNotification;
         Vm.ScaleChanged = ApplyScale;
+        Vm.DensityChanged = ApplyDensity;
+        ApplyDensity(Vm.Settings.Dense);
         ApplyScale(Vm.Settings.UiScale);
         Vm.FocusSearchRequested = () =>
         {
@@ -60,7 +63,29 @@ public partial class MainWindow : Window, IDialogService
     {
         if (Vm is not { } vm) return;
 
-        if (e.KeyModifiers == KeyModifiers.Control && e.Key is Key.F or Key.K)
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.K)
+        {
+            if (vm.Palette.IsOpen) vm.Palette.Close();
+            else
+            {
+                vm.Palette.Open();
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => PaletteBox.Focus(), Avalonia.Threading.DispatcherPriority.Input);
+            }
+            e.Handled = true;
+            return;
+        }
+        if (vm.Palette.IsOpen)
+        {
+            switch (e.Key)
+            {
+                case Key.Escape: vm.Palette.Close(); e.Handled = true; return;
+                case Key.Down: vm.Palette.Move(1); e.Handled = true; return;
+                case Key.Up: vm.Palette.Move(-1); e.Handled = true; return;
+                case Key.Enter: vm.Palette.RunSelected(); e.Handled = true; return;
+            }
+            return;
+        }
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.F)
         {
             vm.IsNowPlayingOpen = false;
             vm.GoSearch();
@@ -133,6 +158,36 @@ public partial class MainWindow : Window, IDialogService
         if (_pressed.Remove(e.Key) && e.Source is not TextBox) e.Handled = true;
     }
 
+    // ---------- Палитра команд ----------
+
+    private void OnPaletteBackdrop(object? sender, Avalonia.Input.PointerPressedEventArgs e) => Vm?.Palette.Close();
+
+    private void OnPaletteItemTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is PaletteItem item && Vm is { } vm)
+        {
+            vm.Palette.SelectedIndex = vm.Palette.Results.IndexOf(item);
+            vm.Palette.RunSelected();
+        }
+    }
+
+    // ---------- Уведомления ----------
+
+    private Avalonia.Controls.Notifications.WindowNotificationManager? _notifications;
+
+    /// <summary>Карточка в правом нижнем углу над панелью плеера. Висит, пока её не нажмут или не закроют.</summary>
+    public void ShowNotification(string title, string message, Action onClick)
+    {
+        _notifications ??= new Avalonia.Controls.Notifications.WindowNotificationManager(this)
+        {
+            Position = Avalonia.Controls.Notifications.NotificationPosition.BottomRight,
+            MaxItems = 2,
+            Margin = new Avalonia.Thickness(0, 0, 16, 96),
+        };
+        _notifications.Show(new Avalonia.Controls.Notifications.Notification(title, message,
+            Avalonia.Controls.Notifications.NotificationType.Information, TimeSpan.Zero, onClick));
+    }
+
     // ---------- Масштаб ----------
 
     private double _scale = 1;
@@ -142,8 +197,19 @@ public partial class MainWindow : Window, IDialogService
     {
         _scale = Math.Clamp(scale, 0.75, 1.5);
         Scaler.LayoutTransform = Math.Abs(_scale - 1) < 0.01 ? null : new Avalonia.Media.ScaleTransform(_scale, _scale);
-        ExtendClientAreaTitleBarHeightHint = 64 * _scale;
+        ExtendClientAreaTitleBarHeightHint = Root.RowDefinitions[0].Height.Value * _scale;
         ApplyLayout(ClientSize.Width / _scale);
+    }
+
+    // ---------- Плотность ----------
+
+    /// <summary>Плотный вид: ниже верхняя и нижняя панели, мельче обложки и шапки (стили класса dense).</summary>
+    public void ApplyDensity(bool dense)
+    {
+        Classes.Set("dense", dense);
+        Root.RowDefinitions[0].Height = new GridLength(dense ? 52 : 64);
+        Root.RowDefinitions[2].Height = new GridLength(dense ? 68 : 80);
+        ExtendClientAreaTitleBarHeightHint = Root.RowDefinitions[0].Height.Value * _scale;
     }
 
     // ---------- Ширина окна ----------

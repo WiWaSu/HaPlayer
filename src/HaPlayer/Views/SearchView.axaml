@@ -31,7 +31,7 @@
               <DataTemplate x:DataType="vm:AlbumItem">
                 <Button Classes="card" Command="{Binding OpenCommand}">
                   <StackPanel Spacing="4">
-                    <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}" Margin="0,0,0,8"
+                    <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}" Margin="0,0,0,8"
                                   BoxShadow="0 8 24 0 #80000000" />
                     <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
                     <TextBlock Text="{Binding CardSubtitle}" Classes="sub" />
@@ -59,7 +59,7 @@
               <DataTemplate x:DataType="vm:ArtistItem">
                 <Button Classes="card" Command="{Binding OpenCommand}">
                   <StackPanel Spacing="4">
-                    <ui:CoverView Width="164" Height="164" CornerRadius="82" Source="{Binding Art}" Margin="0,0,0,8"
+                    <ui:CoverView Classes="cardcover" CornerRadius="82" Source="{Binding Art}" Margin="0,0,0,8"
                                   BoxShadow="0 8 24 0 #80000000" />
                     <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
                     <TextBlock Text="{ui:T 'Исполнитель'}" Classes="sub" />
@@ -89,7 +89,7 @@
                 <Button Classes="card" Command="{Binding OpenCommand}">
                   <StackPanel Spacing="4">
                     <Panel Margin="0,0,0,8">
-                      <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}"
+                      <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}"
                                     BoxShadow="0 8 24 0 #80000000" />
                       <Button Classes="primary small float" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                               Width="48" Height="48" CornerRadius="24" Margin="0,0,8,8"
@@ -117,7 +117,7 @@
               <DataTemplate x:DataType="vm:CollectionItem">
                 <Button Classes="card" Command="{Binding OpenCommand}">
                   <StackPanel Spacing="4">
-                    <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}" Margin="0,0,0,8"
+                    <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}" Margin="0,0,0,8"
                                   IsLiked="{Binding IsLikedCollection}" BoxShadow="0 8 24 0 #80000000" />
                     <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
                     <TextBlock Text="{Binding Subtitle}" Classes="sub" />

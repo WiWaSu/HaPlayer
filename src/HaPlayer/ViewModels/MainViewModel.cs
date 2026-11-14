@@ -37,6 +37,7 @@ public enum LibraryTab
     Playlists,
     Albums,
     Artists,
+    Folders,
 }
 
 public sealed partial class MainViewModel : ObservableObject
@@ -62,6 +63,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         Track.TagsOnly = settings.StrictTags;
         foreach (var t in db.LoadAll()) AddTrackItem(new TrackItem(t));
+        _notes = db.LoadNotes();
+        var blacklist = settings.Blacklist.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in _library) t.IsBlacklisted = blacklist.Contains(t.Path);
+        foreach (var (path, stars) in db.LoadRatings())
+            if (_byPath.TryGetValue(path, out var rated)) rated.Rating = stars;
         foreach (var (path, (count, last)) in db.LoadPlayStats())
             if (_byPath.TryGetValue(path, out var played))
             {
@@ -82,14 +88,21 @@ public sealed partial class MainViewModel : ObservableObject
         _hidden = db.LoadHidden();
         if (!string.IsNullOrEmpty(settings.OutputDeviceId)) engine.SetDevice(settings.OutputDeviceId);
         Player.Listened += OnListened;
+        Player.StoppedBySleepTimer += () =>
+        {
+            IsSleepActive = false;
+            SleepLeft = "";
+        };
         Player.QueueChanged += RefreshUpNext;
         _currentPage = new HomePageViewModel(this);
         Rebuild();
 
         Player.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == nameof(PlayerViewModel.Position)) UpdateLyricLine();
             if (e.PropertyName == nameof(PlayerViewModel.CurrentTrack))
             {
+                _ = LoadLyricsAsync();
                 _ = UpdateNowPlayingAsync();
                 OnPropertyChanged(nameof(ShowQueuePanel));
             }
@@ -183,6 +196,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Перекрашивает интерфейс: ресурсы меняются сразу, а обложки «Любимых» и шапки пересоздаются.</summary>
     // ---------- Где хранить данные ----------
 
+    /// <summary>Окно включает или выключает плотный вид. Задаёт MainWindow.</summary>
+    public Action<bool>? DensityChanged { get; set; }
+
     /// <summary>Окно меняет масштаб интерфейса. Задаёт MainWindow.</summary>
     public Action<double>? ScaleChanged { get; set; }
 
@@ -202,7 +218,41 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Проверка при запуске. Только если пользователь её включил: без спроса в сеть не ходим.</summary>
     public async Task CheckUpdatesOnStartAsync()
     {
-        if (Settings.CheckUpdates) AvailableUpdate = await UpdateService.CheckAsync();
+        // Один раз спрашиваем разрешения: без него программа в сеть не ходит.
+        if (!Settings.UpdatesAsked && Dialogs != null)
+        {
+            Settings.UpdatesAsked = true;
+            if (!Settings.CheckUpdates)
+                Settings.CheckUpdates = await Dialogs.ConfirmAsync(L.T("Проверять обновления?"),
+                    L.T("HaPlayer будет заглядывать на GitHub и сообщать о новой версии. Больше никуда не обращается."),
+                    L.T("Проверять"));
+            Settings.Save();
+        }
+        if (!Settings.CheckUpdates) return;
+        await CheckAndNotifyAsync();
+
+        // Программу часто не закрывают сутками: проверяем ещё раз каждые 6 часов.
+        _updateTimer ??= new Avalonia.Threading.DispatcherTimer(TimeSpan.FromHours(6),
+            Avalonia.Threading.DispatcherPriority.Background, async (_, _) =>
+            {
+                if (Settings.CheckUpdates) await CheckAndNotifyAsync();
+            });
+        _updateTimer.Start();
+    }
+
+    private Avalonia.Threading.DispatcherTimer? _updateTimer;
+    private string? _notifiedVersion;
+
+    /// <summary>Окно показывает уведомление: заголовок, текст и действие по щелчку. Задаёт MainWindow.</summary>
+    public Action<string, string, Action>? Notify { get; set; }
+
+    private async Task CheckAndNotifyAsync()
+    {
+        AvailableUpdate = await UpdateService.CheckAsync();
+        if (AvailableUpdate is not { } r || r.Version == _notifiedVersion) return;
+        _notifiedVersion = r.Version;
+        Notify?.Invoke(L.F("Доступна версия {0}", r.Version), L.T("Нажмите, чтобы обновить"),
+            () => _ = InstallUpdate());
     }
 
     // ---------- Мини-плеер ----------
@@ -406,6 +456,8 @@ public sealed partial class MainViewModel : ObservableObject
             SearchPageViewModel => "search",
             TracksPageViewModel => "tracks",
             SettingsPageViewModel => "settings",
+            StatsPageViewModel => "stats",
+            YearsPageViewModel => "years",
             CollectionPageViewModel c => $"{c.Item.Kind}:{c.Item.Key}",
             _ => "home",
         };
@@ -436,6 +488,8 @@ public sealed partial class MainViewModel : ObservableObject
                 "search" => new SearchPageViewModel(this),
                 "tracks" => new TracksPageViewModel(this),
                 "settings" => new SettingsPageViewModel(this),
+                "stats" => new StatsPageViewModel(this),
+                "years" => new YearsPageViewModel(this),
                 _ => new HomePageViewModel(this),
             };
         }
@@ -473,9 +527,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Строки таблицы для списка треков. Общая фабрика, чтобы у всех страниц одинаково работали кнопки строки.</summary>
     public List<TrackRow> MakeRows(IReadOnlyList<TrackItem> list, string? queueTitle, Func<TrackItem, int, string> number,
-        Func<TrackItem, string> secondary, bool showCover)
+        Func<TrackItem, string> secondary, bool showCover, Func<TrackItem, bool>? pinned = null)
     {
-        var options = new TrackRowOptions(Settings.CompactList, Settings.ShowTechInfo, Settings.ShowPlayCount);
+        var options = new TrackRowOptions(Settings.CompactList || Settings.Dense, Settings.ShowTechInfo, Settings.ShowPlayCount, Settings.ShowRatings);
         return list.Select((t, i) => new TrackRow(i, number(t, i), t, secondary(t), showCover,
             play: () => Player.PlayList(list, i, queueTitle),
             toggle: () =>
@@ -483,7 +537,7 @@ public sealed partial class MainViewModel : ObservableObject
                 if (t.IsCurrent) Player.PlayPause();
                 else Player.PlayList(list, i, queueTitle);
             },
-            like: () => ToggleLike([t]), options)).ToList();
+            like: () => ToggleLike([t]), options, pinned?.Invoke(t) ?? false)).ToList();
     }
 
     /// <summary>Формат, частота и битрейт видны и в «Сейчас играет», если включены в настройках.</summary>
@@ -504,6 +558,214 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var t in _library) t.Refresh();
         Rebuild();
         if (CurrentPage is not SettingsPageViewModel) RefreshPage();
+    }
+
+    /// <summary>«Все треки» с быстрым фильтром. Смена фильтра не попадает в историю «Назад».</summary>
+    public void ShowTracks(string filter)
+    {
+        _replacingPage = CurrentPage is TracksPageViewModel;
+        CurrentPage = new TracksPageViewModel(this, filter);
+        _replacingPage = false;
+    }
+
+    // ---------- Оценки ----------
+
+    public void SetRating(IReadOnlyList<TrackItem> tracks, int stars)
+    {
+        _db.SetRating(tracks.Select(t => t.Path), stars);
+        foreach (var t in tracks) t.Rating = stars;
+        if (CurrentPage is not SettingsPageViewModel) RefreshPage();
+    }
+
+    // ---------- Радио по треку ----------
+
+    /// <summary>
+    /// Очередь из похожих треков медиатеки: тот же исполнитель, жанр, близкий год, соседняя папка.
+    /// Сначала играет сам трек, потом до 50 похожих в перемешанном порядке внутри одинаковой похожести.
+    /// </summary>
+    public void PlayRadio(TrackItem seed)
+    {
+        var m = seed.Model;
+        var folder = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(seed.Path) ?? "") ?? "";
+        int Score(TrackItem t)
+        {
+            var s = 0;
+            if (string.Equals(t.Artist, seed.Artist, StringComparison.OrdinalIgnoreCase)) s += 3;
+            if (m.Genre.Length > 0 && string.Equals(t.Model.Genre, m.Genre, StringComparison.OrdinalIgnoreCase)) s += 3;
+            if (m.Year > 0 && t.Model.Year > 0 && Math.Abs(t.Model.Year - m.Year) <= 3) s += 1;
+            if (folder.Length > 0 && t.Path.StartsWith(folder, StringComparison.OrdinalIgnoreCase)) s += 1;
+            if (t.IsLiked) s += 1;
+            return s;
+        }
+        var similar = _library
+            .Where(t => t != seed && !t.IsMissing && !t.IsBlacklisted && t.SongKey != seed.SongKey)
+            .Select(t => (Track: t, Score: Score(t), Shuffle: Random.Shared.Next()))
+            .Where(x => x.Score >= 2)
+            .OrderByDescending(x => x.Score).ThenBy(x => x.Shuffle)
+            .Take(50)
+            .Select(x => x.Track)
+            .ToList();
+        var list = new List<TrackItem> { seed };
+        list.AddRange(similar);
+        Player.Shuffle = false;
+        Player.PlayList(list, 0, L.F("Радио: {0}", seed.Title));
+    }
+
+    // ---------- Пропавшие файлы ----------
+
+    /// <summary>Убирает из медиатеки треки, файлов которых нет на месте. Файлы и так пропали, на диске ничего не меняется.</summary>
+    public async Task RemoveMissingAsync()
+    {
+        if (Dialogs == null) return;
+        var missing = _library.Where(t => t.IsMissing).ToList();
+        if (missing.Count == 0) return;
+        var ok = await Dialogs.ConfirmAsync(L.T("Убрать пропавшие треки?"),
+            L.F("{0} без файла исчезнут из медиатеки, плейлистов и истории. Если диск просто отключён, подключите его и проверьте папки ещё раз.",
+                Format.Tracks(missing.Count)),
+            L.T("Убрать"));
+        if (!ok) return;
+        _db.Hide(missing.Select(t => t.Path).ToList());
+        foreach (var t in missing)
+        {
+            _library.Remove(t);
+            _byPath.Remove(t.Path);
+            _hidden.Add(t.Path);
+        }
+        Rebuild();
+        OnPropertyChanged(nameof(MissingCount));
+        RefreshPage();
+    }
+
+    // ---------- Таймер сна ----------
+
+    private Avalonia.Threading.DispatcherTimer? _sleepTimer;
+    private DateTime _sleepAt;
+    private const double SleepFadeSeconds = 30;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SleepTip))]
+    private bool _isSleepActive;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SleepTip))]
+    private string _sleepLeft = "";
+
+    public string SleepTip => IsSleepActive ? L.F("Таймер сна: {0}", SleepLeft) : L.T("Таймер сна");
+
+    /// <summary>Минуты до остановки. -1 — после этого трека, 0 — выключить.</summary>
+    public void SetSleepTimer(int minutes)
+    {
+        _sleepTimer?.Stop();
+        Player.StopAfterCurrent = false;
+        Player.SetFade(1);
+        IsSleepActive = minutes != 0;
+        if (minutes == 0)
+        {
+            SleepLeft = "";
+            return;
+        }
+        if (minutes < 0)
+        {
+            Player.StopAfterCurrent = true;
+            SleepLeft = L.T("после этого трека");
+            return;
+        }
+        _sleepAt = DateTime.Now.AddMinutes(minutes);
+        _sleepTimer ??= new Avalonia.Threading.DispatcherTimer(TimeSpan.FromSeconds(1),
+            Avalonia.Threading.DispatcherPriority.Background, (_, _) => SleepTick());
+        _sleepTimer.Start();
+        SleepTick();
+    }
+
+    private void SleepTick()
+    {
+        var left = _sleepAt - DateTime.Now;
+        if (left <= TimeSpan.Zero)
+        {
+            _sleepTimer?.Stop();
+            Player.Pause();
+            Player.SetFade(1);
+            IsSleepActive = false;
+            SleepLeft = "";
+            return;
+        }
+        SleepLeft = left.TotalMinutes >= 1 ? L.F("{0} мин", (int)Math.Ceiling(left.TotalMinutes)) : L.F("{0} с", (int)left.TotalSeconds);
+        // Последние 30 секунд музыка плавно затихает.
+        Player.SetFade(left.TotalSeconds < SleepFadeSeconds ? left.TotalSeconds / SleepFadeSeconds : 1);
+    }
+
+    // ---------- Палитра команд ----------
+
+    public PaletteViewModel Palette => _palette ??= new PaletteViewModel(this);
+    private PaletteViewModel? _palette;
+
+    // ---------- «Сейчас играет»: погружение, визуализатор, текст ----------
+
+    /// <summary>Погружение: только большая обложка и управление, всё остальное прячется.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CoverSize), nameof(CoverMaxWidth))]
+    private bool _isImmersive;
+
+    [ObservableProperty] private bool _isLyricsOpen;
+
+    public double CoverSize => IsImmersive ? 760 : 520;
+    public double CoverMaxWidth => IsImmersive ? 800 : 560;
+
+    [RelayCommand]
+    private void ToggleImmersive() => IsImmersive = !IsImmersive;
+
+    [RelayCommand]
+    private void ToggleLyrics() => IsLyricsOpen = !IsLyricsOpen;
+
+    public bool ShowVisualizer => Settings.ShowVisualizer;
+
+    public void NotifyVisualizer() => OnPropertyChanged(nameof(ShowVisualizer));
+
+    private Lyrics? _lyrics;
+    private int _lyricIndex = int.MinValue;
+
+    [ObservableProperty] private List<LyricRow> _lyricWindow = [];
+    [ObservableProperty] private string _lyricsPlain = "";
+
+    public bool HasLyrics => _lyrics != null;
+    public bool HasSyncedLyrics => _lyrics?.Synced == true;
+    public bool HasPlainLyrics => _lyrics is { Synced: false };
+
+    private async Task LoadLyricsAsync()
+    {
+        var track = Player.CurrentTrack;
+        var lyrics = track == null ? null : await Task.Run(() => Lyrics.Load(track.Path));
+        if (Player.CurrentTrack != track) return;
+        _lyrics = lyrics;
+        _lyricIndex = int.MinValue;
+        LyricsPlain = lyrics is { Synced: false } ? string.Join("\n", lyrics.Lines.Select(l => l.Text)) : "";
+        OnPropertyChanged(nameof(HasLyrics));
+        OnPropertyChanged(nameof(HasSyncedLyrics));
+        OnPropertyChanged(nameof(HasPlainLyrics));
+        UpdateLyricLine();
+    }
+
+    /// <summary>Семь строк вокруг текущей: две до, текущая, четыре после. Чем дальше от текущей, тем бледнее.</summary>
+    private void UpdateLyricLine()
+    {
+        if (_lyrics is not { Synced: true } lyrics)
+        {
+            if (LyricWindow.Count > 0) LyricWindow = [];
+            return;
+        }
+        var index = lyrics.IndexAt(TimeSpan.FromSeconds(Player.Position));
+        if (index == _lyricIndex) return;
+        _lyricIndex = index;
+        var rows = new List<LyricRow>();
+        var center = Math.Max(index, 0);
+        for (var i = center - 2; i <= center + 4; i++)
+        {
+            if (i < 0 || i >= lyrics.Lines.Count) continue;
+            var text = lyrics.Lines[i].Text.Length > 0 ? lyrics.Lines[i].Text : "♪";
+            var distance = Math.Abs(i - index);
+            rows.Add(new LyricRow(text, i == index, i == index ? 1 : Math.Max(0.25, 0.7 - distance * 0.12)));
+        }
+        LyricWindow = rows;
     }
 
     // ---------- Сведения о файле ----------
@@ -533,6 +795,12 @@ public sealed partial class MainViewModel : ObservableObject
         if (m.Year > 0) lines.Add(L.F("Год: {0}", m.Year));
         if (!string.IsNullOrEmpty(t.AddedText)) lines.Add(L.F("Добавлен: {0}", t.AddedText));
         if (t.PlayCount > 0) lines.Add(L.F("Прослушан: {0}", L.Plural(t.PlayCount, "раз", "раза", "раз", "time", "times")));
+        if (t.Rating > 0) lines.Add(L.F("Оценка: {0}", t.Stars));
+        if (Note("track", t.Path) is { Length: > 0 } note) lines.Add(L.F("Заметка: {0}", note));
+        if (t.IsBlacklisted) lines.Add(L.T("Не попадает в подборки и перемешивание"));
+        if (!string.IsNullOrEmpty(m.Genre)) lines.Add(L.F("Жанр: {0}", m.Genre));
+        var inPlaylists = Playlists.Where(p => p.Tracks.Contains(t)).Select(p => p.Name).ToList();
+        if (inPlaylists.Count > 0) lines.Add(L.F("В плейлистах: {0}", string.Join(", ", inPlaylists)));
         if (t.IsMissing) lines.Add(L.T("Файл не найден"));
         await Dialogs.MessageAsync(t.Title, string.Join("\n", lines));
     }
@@ -547,16 +815,30 @@ public sealed partial class MainViewModel : ObservableObject
         get
         {
             var monthAgo = DateTime.UtcNow.AddDays(-30).Ticks;
-            var recent = _library.OrderByDescending(t => t.Model.AddedTicks).Take(SmartLimit).ToList();
-            var top = _library.Where(t => t.PlayCount > 0)
+            var quarterAgo = DateTime.UtcNow.AddDays(-91).Ticks;
+            var pool = _library.Where(t => !IsHiddenTrack(t)).ToList();
+            var recent = pool.Where(t => t.Model.AddedTicks >= monthAgo).OrderByDescending(t => t.Model.AddedTicks).ToList();
+            var recentText = L.T("Добавлено за последний месяц");
+            if (recent.Count == 0)
+            {
+                recent = pool.OrderByDescending(t => t.Model.AddedTicks).Take(SmartLimit).ToList();
+                recentText = L.T("Последние 100 треков");
+            }
+            var lossless = pool.Where(t => t.Model.IsLossless).ToList();
+            var rated = pool.Where(t => t.Rating >= 4).OrderByDescending(t => t.Rating).ToList();
+            var top = pool.Where(t => t.PlayCount > 0)
                 .OrderByDescending(t => t.PlayCount).ThenByDescending(t => t.LastPlayedTicks).Take(SmartLimit).ToList();
-            var forgotten = _library.Where(t => t.PlayCount > 0 && t.LastPlayedTicks < monthAgo)
+            var forgotten = pool.Where(t => t.PlayCount > 0 && t.LastPlayedTicks < quarterAgo)
                 .OrderByDescending(t => t.PlayCount).Take(SmartLimit).ToList();
             return
             [
-                new SmartItem("recent", L.T("Новое в медиатеке"), L.T("Последние 100 треков"), recent, Covers, Open, Play),
+                new SmartItem("recent", L.T("Новое в медиатеке"), recentText, recent, Covers, Open, Play),
                 new SmartItem("top", L.T("Часто слушаю"), L.T("По истории прослушивания"), top, Covers, Open, Play),
-                new SmartItem("forgotten", L.T("Давно не слушал"), L.T("Слушали раньше, но не в последний месяц"), forgotten, Covers, Open, Play),
+                new SmartItem("forgotten", L.T("Давно не слушал"), L.T("Не звучало больше трёх месяцев"), forgotten, Covers, Open, Play),
+                new SmartItem("lossless", L.T("Без потерь"), L.T("FLAC, WAV, ALAC"), lossless, Covers, Open, Play),
+                .. Settings.ShowRatings
+                    ? new[] { new SmartItem("rated", L.T("Высокий рейтинг"), L.T("Оценка 4 и 5"), rated, Covers, Open, Play) }
+                    : [],
             ];
         }
     }
@@ -609,7 +891,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _checkingFiles = false;
         }
-        if (Settings.ShowTechInfo) await FillTechInfoAsync();
+        // Техданные и жанр дочитываются всегда: жанр нужен «Радио по треку».
+        await FillTechInfoAsync();
     }
 
     public int MissingCount => _library.Count(t => t.IsMissing);
@@ -620,8 +903,14 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task FillTechInfoAsync()
     {
         if (_fillingTech) return;
-        var todo = _library.Where(t => t.Model.SampleRate == 0 && !t.IsMissing).Select(t => t.Model).ToList();
-        if (todo.Count == 0) return;
+        // До 1.8 жанр не запоминался: один раз перечитываем все треки, дальше только новые.
+        var allOnce = !Settings.GenresRead;
+        var todo = _library.Where(t => (allOnce || t.Model.SampleRate == 0) && !t.IsMissing).Select(t => t.Model).ToList();
+        if (todo.Count == 0)
+        {
+            Settings.GenresRead = true;
+            return;
+        }
         _fillingTech = true;
         try
         {
@@ -633,6 +922,11 @@ public sealed partial class MainViewModel : ObservableObject
                 _db.UpdateTech(ok);
                 return ok.Count;
             });
+            if (allOnce)
+            {
+                Settings.GenresRead = true;
+                Settings.Save();
+            }
             if (done > 0) Player.CurrentTrack?.Refresh();
             if (done > 0 && CurrentPage is not SettingsPageViewModel) RefreshPage();
         }
@@ -669,12 +963,13 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<CollectionItem> LibraryItems { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPlaylistsTab), nameof(IsAlbumsTab), nameof(IsArtistsTab), nameof(HasFilter))]
+    [NotifyPropertyChangedFor(nameof(IsPlaylistsTab), nameof(IsAlbumsTab), nameof(IsArtistsTab), nameof(IsFoldersTab), nameof(HasFilter))]
     private LibraryTab _tab = LibraryTab.All;
 
     public bool IsPlaylistsTab => Tab == LibraryTab.Playlists;
     public bool IsAlbumsTab => Tab == LibraryTab.Albums;
     public bool IsArtistsTab => Tab == LibraryTab.Artists;
+    public bool IsFoldersTab => Tab == LibraryTab.Folders;
     public bool HasFilter => Tab != LibraryTab.All;
 
     /// <summary>Чип включает фильтр, повторное нажатие снимает его, как в Spotify.</summary>
@@ -739,6 +1034,7 @@ public sealed partial class MainViewModel : ObservableObject
             LibraryTab.Playlists => Playlists,
             LibraryTab.Albums => RecentAlbums,
             LibraryTab.Artists => Artists,
+            LibraryTab.Folders => RootFolders(),
             _ => Playlists.Cast<CollectionItem>().Concat(RecentAlbums).Concat(Artists),
         };
 
@@ -799,10 +1095,11 @@ public sealed partial class MainViewModel : ObservableObject
     // ---------- Страницы и история «Назад» / «Вперёд» ----------
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsHomeActive), nameof(IsTracksActive), nameof(IsSearchActive), nameof(IsSettingsActive), nameof(SettingsTip))]
+    [NotifyPropertyChangedFor(nameof(IsHomeActive), nameof(IsStatsActive), nameof(IsTracksActive), nameof(IsSearchActive), nameof(IsSettingsActive), nameof(SettingsTip))]
     private object _currentPage;
 
     public bool IsHomeActive => CurrentPage is HomePageViewModel;
+    public bool IsStatsActive => CurrentPage is StatsPageViewModel;
     public bool IsTracksActive => CurrentPage is TracksPageViewModel;
     public bool IsSearchActive => CurrentPage is SearchPageViewModel;
 
@@ -827,6 +1124,252 @@ public sealed partial class MainViewModel : ObservableObject
         SyncLibrarySelection();
         IsNowPlayingOpen = false;
         IsLibraryExpanded = false;
+        Crumbs = BuildCrumbs();
+    }
+
+    // ---------- Хлебные крошки ----------
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCrumbs))]
+    private List<Crumb> _crumbs = [];
+
+    public bool HasCrumbs => Crumbs.Count > 0;
+
+    /// <summary>
+    /// Где мы: «Главная › Исполнитель › Альбом». Строится по смыслу страницы, а не по истории переходов.
+    /// На главной и страницах первого уровня с крупным заголовком (настройки, поиск, итоги) крошек нет.
+    /// </summary>
+    private List<Crumb> BuildCrumbs()
+    {
+        var home = new Crumb(L.T("Главная"), () => GoHomeCommand.Execute(null));
+        switch (CurrentPage)
+        {
+            case TracksPageViewModel:
+                return [home, new Crumb(L.T("Все треки"), null)];
+            case CollectionPageViewModel { Item: AlbumItem album }:
+            {
+                var artist = Artists.FirstOrDefault(a => a.Key == ArtistItem.MakeKey(album.Artist));
+                var list = new List<Crumb> { home };
+                if (artist != null) list.Add(new Crumb(artist.Name, () => Open(artist)));
+                list.Add(new Crumb(album.Name, null));
+                return list;
+            }
+            case CollectionPageViewModel { Item: FolderItem folder }:
+            {
+                var list = new List<Crumb> { home };
+                // Папки выше открытой, начиная с папки медиатеки.
+                foreach (var parent in FolderParents(folder)) list.Add(new Crumb(parent.Name, () => Open(parent)));
+                list.Add(new Crumb(folder.Name, null));
+                return list;
+            }
+            case CollectionPageViewModel c:
+                return [home, new Crumb(c.Item.Name, null)];
+            case YearsPageViewModel:
+                return [home, new Crumb(L.T("По годам"), null)];
+            default:
+                return [];
+        }
+    }
+
+    // ---------- Папки ----------
+
+    private static string Norm(string folder) => folder.TrimEnd('\\', '/');
+
+    /// <summary>Папка со всем содержимым. Строится по запросу: папок много, а открывают единицы.</summary>
+    public FolderItem Folder(string path)
+    {
+        path = Norm(path);
+        var prefix = path + "\\";
+        var all = _library.Where(t => t.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.Path, StringComparer.OrdinalIgnoreCase).ToList();
+        var direct = all.Where(t => string.Equals(Path.GetDirectoryName(t.Path), path, StringComparison.OrdinalIgnoreCase)).ToList();
+        return new FolderItem(path, direct, all, Covers, Open, Play);
+    }
+
+    /// <summary>Вложенные папки первого уровня, в которых есть музыка.</summary>
+    public List<FolderItem> SubFolders(FolderItem folder)
+    {
+        var prefix = folder.Path + "\\";
+        return _library
+            .Select(t => Path.GetDirectoryName(t.Path) ?? "")
+            .Where(d => d.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(d => prefix + d[prefix.Length..].Split('\\')[0])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d, StringComparer.CurrentCultureIgnoreCase)
+            .Select(Folder)
+            .ToList();
+    }
+
+    /// <summary>Корни для вкладки «Папки»: папки медиатеки и папки отдельно добавленных файлов.</summary>
+    private List<CollectionItem> RootFolders()
+    {
+        var roots = Settings.MusicFolders.Select(Norm).ToList();
+        foreach (var t in _library)
+        {
+            var dir = Path.GetDirectoryName(t.Path) ?? "";
+            if (!roots.Any(r => dir.Equals(r, StringComparison.OrdinalIgnoreCase) || dir.StartsWith(r + "\\", StringComparison.OrdinalIgnoreCase)))
+                roots.Add(dir);
+        }
+        return roots.Distinct(StringComparer.OrdinalIgnoreCase).Select(Folder).Where(f => f.AllTracks.Count > 0).Cast<CollectionItem>().ToList();
+    }
+
+    /// <summary>Папки выше открытой, от корня медиатеки. Для хлебных крошек.</summary>
+    private List<FolderItem> FolderParents(FolderItem folder)
+    {
+        var roots = Settings.MusicFolders.Select(Norm).ToList();
+        var root = roots.FirstOrDefault(r => folder.Path.StartsWith(r + "\\", StringComparison.OrdinalIgnoreCase));
+        if (root == null) return [];
+        var list = new List<FolderItem>();
+        var p = Path.GetDirectoryName(folder.Path);
+        while (p != null && p.Length >= root.Length)
+        {
+            list.Insert(0, Folder(p));
+            p = Path.GetDirectoryName(p);
+        }
+        return list;
+    }
+
+    // ---------- По годам ----------
+
+    [RelayCommand]
+    private void GoYears()
+    {
+        if (CurrentPage is not YearsPageViewModel) CurrentPage = new YearsPageViewModel(this);
+    }
+
+    // ---------- Объединение исполнителей, склеивание и разделение альбомов ----------
+    // Всё через привязки HaPlayer: теги файлов не меняются, «Вернуть как в тегах» отменяет.
+
+    public void MergeArtist(ArtistItem from, ArtistItem into) => AssignToArtist(into.Name, from.Tracks.ToList());
+
+    public void GlueAlbum(AlbumItem from, AlbumItem into) => AssignToAlbum(into.Key, from.Tracks.ToList());
+
+    /// <summary>Альбом из нескольких папок делится на отдельные альбомы, по одному на папку.</summary>
+    public void SplitAlbumByFolders(AlbumItem album)
+    {
+        var groups = album.Tracks.GroupBy(t => Path.GetDirectoryName(t.Path) ?? "", StringComparer.OrdinalIgnoreCase).ToList();
+        if (groups.Count < 2) return;
+        foreach (var g in groups)
+        {
+            var name = $"{album.Name} ({Path.GetFileName(g.Key)})";
+            var key = Track.MakeAlbumKey(name, album.Artist);
+            var paths = g.Select(t => t.Path).ToList();
+            _db.SetUserAlbum(paths, key);
+            foreach (var t in g)
+            {
+                t.Model.UserAlbumKey = key;
+                t.Refresh();
+            }
+        }
+        Rebuild();
+        RefreshPage();
+    }
+
+    /// <summary>Похожие имена первыми: регистр, пробелы, «the» и знаки не учитываются.</summary>
+    public static string NameKey(string name) =>
+        new string(name.ToLowerInvariant().Replace("the ", "").Where(char.IsLetterOrDigit).ToArray());
+
+    // ---------- Скрыть с главной ----------
+
+    private static string HideKey(CollectionItem item) => $"{item.Kind}:{item.Key}";
+
+    public bool IsHiddenFromHome(CollectionItem item) => Settings.HiddenFromHome.Contains(HideKey(item));
+
+    public void ToggleHiddenFromHome(CollectionItem item)
+    {
+        var key = HideKey(item);
+        if (!Settings.HiddenFromHome.Remove(key)) Settings.HiddenFromHome.Add(key);
+        Settings.Save();
+        if (CurrentPage is HomePageViewModel) RefreshPage();
+    }
+
+    /// <summary>Трек из скрытого альбома или исполнителя не попадает в подборки.</summary>
+    public bool IsHiddenTrack(TrackItem t) =>
+        t.IsBlacklisted
+        || (t.Album != null && Settings.HiddenFromHome.Contains("album:" + t.Album.Key))
+        || Settings.HiddenFromHome.Contains("artist:" + ArtistItem.MakeKey(t.Artist));
+
+    // ---------- Чёрный список ----------
+
+    public void ToggleBlacklist(IReadOnlyList<TrackItem> tracks)
+    {
+        var add = tracks.Any(t => !t.IsBlacklisted);
+        foreach (var t in tracks)
+        {
+            t.IsBlacklisted = add;
+            Settings.Blacklist.RemoveAll(p => string.Equals(p, t.Path, StringComparison.OrdinalIgnoreCase));
+            if (add) Settings.Blacklist.Add(t.Path);
+        }
+        Settings.Save();
+        OnPropertyChanged(nameof(BlacklistCount));
+    }
+
+    public int BlacklistCount => _library.Count(t => t.IsBlacklisted);
+
+    public void ClearBlacklist()
+    {
+        foreach (var t in _library) t.IsBlacklisted = false;
+        Settings.Blacklist.Clear();
+        Settings.Save();
+        OnPropertyChanged(nameof(BlacklistCount));
+    }
+
+    // ---------- Закрепление треков в плейлисте ----------
+
+    private List<TrackItem> PinnedFirst(long playlistId, List<TrackItem> tracks)
+    {
+        var prefix = playlistId + "|";
+        var pins = Settings.PinnedTracks.Where(p => p.StartsWith(prefix)).Select(p => p[prefix.Length..]).ToList();
+        if (pins.Count == 0) return tracks;
+        var pinned = pins.Select(p => tracks.FirstOrDefault(t => string.Equals(t.Path, p, StringComparison.OrdinalIgnoreCase)))
+            .OfType<TrackItem>().ToList();
+        return pinned.Concat(tracks.Where(t => !pinned.Contains(t))).ToList();
+    }
+
+    public bool IsPinnedIn(PlaylistItem playlist, TrackItem t) =>
+        Settings.PinnedTracks.Contains(playlist.Id + "|" + t.Path, StringComparer.OrdinalIgnoreCase);
+
+    public void TogglePinInPlaylist(PlaylistItem playlist, IReadOnlyList<TrackItem> tracks)
+    {
+        var add = tracks.Any(t => !IsPinnedIn(playlist, t));
+        foreach (var t in tracks)
+        {
+            var key = playlist.Id + "|" + t.Path;
+            Settings.PinnedTracks.RemoveAll(p => string.Equals(p, key, StringComparison.OrdinalIgnoreCase));
+            if (add) Settings.PinnedTracks.Add(key);
+        }
+        Settings.Save();
+        RebuildPlaylists();
+        RefreshPage();
+    }
+
+    // ---------- Заметки ----------
+
+    private readonly Dictionary<(string Kind, string Key), string> _notes;
+
+    public string Note(string kind, string key) => _notes.GetValueOrDefault((kind, key)) ?? "";
+
+    public async Task EditNoteAsync(string kind, string key, string title)
+    {
+        if (Dialogs == null) return;
+        var text = await Dialogs.PromptAsync(L.F("Заметка: {0}", title), L.T("Текст заметки"), Note(kind, key), L.T("Сохранить"));
+        if (text == null) return;
+        _db.SetNote(kind, key, text);
+        if (string.IsNullOrWhiteSpace(text)) _notes.Remove((kind, key));
+        else _notes[(kind, key)] = text.Trim();
+        RefreshPage();
+    }
+
+    // ---------- «Показать в медиатеке» ----------
+
+    /// <summary>Открывает альбом играющего трека, прокручивает к нему и выделяет строку.</summary>
+    [RelayCommand]
+    public void RevealCurrent()
+    {
+        if (Player.CurrentTrack is not { Album: { } album } track) return;
+        IsNowPlayingOpen = false;
+        if (CurrentPage is not CollectionPageViewModel c || c.Item != album) Open(album);
+        if (CurrentPage is CollectionPageViewModel page) page.Reveal(track);
     }
 
     [RelayCommand]
@@ -852,6 +1395,21 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentPage = target;
         _historyNavigation = false;
     }
+
+    [RelayCommand]
+    private void GoStats()
+    {
+        if (CurrentPage is StatsPageViewModel) GoBack();
+        else CurrentPage = new StatsPageViewModel(this);
+    }
+
+    /// <summary>Все прослушивания из истории с треками, которые есть в медиатеке. Для «Итогов».</summary>
+    public List<(TrackItem Track, DateTime At)> LoadAllPlays() =>
+        _db.LoadHistory(1_000_000)
+            .Select(h => (Track: _byPath.GetValueOrDefault(h.Path), At: new DateTime(h.PlayedAt, DateTimeKind.Utc).ToLocalTime()))
+            .Where(x => x.Track != null)
+            .Select(x => (x.Track!, x.At))
+            .ToList();
 
     [RelayCommand]
     private void GoHome()
@@ -1113,7 +1671,7 @@ public sealed partial class MainViewModel : ObservableObject
     public void Play(CollectionItem item)
     {
         Touch(item);
-        PlayOrToggle(item.Tracks, 0, item.Name);
+        PlayOrToggle(item is FolderItem f ? f.AllTracks : item.Tracks, 0, item.Name);
         // Как в Spotify: включённое поднимается наверх «Недавних».
         if (!SortAlphabetical) RefreshLibraryList();
     }
@@ -1129,16 +1687,20 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Пересоздаёт открытую страницу после изменений, чтобы она показала свежие данные.</summary>
     private void RefreshPage()
     {
-        // Подмена страницы свежей копией не должна попадать в историю «Назад».
+        // Подмена страницы свежей копией не должна попадать в историю «Назад». Прокрутка сохраняется.
+        var offset = (CurrentPage as PageViewModel)?.ScrollOffset ?? default;
         _replacingPage = true;
         CurrentPage = CurrentPage switch
         {
-            TracksPageViewModel => new TracksPageViewModel(this),
+            TracksPageViewModel t => new TracksPageViewModel(this, t.Filter),
             SearchPageViewModel => new SearchPageViewModel(this),
             SettingsPageViewModel => new SettingsPageViewModel(this),
+            StatsPageViewModel => new StatsPageViewModel(this),
+            YearsPageViewModel => new YearsPageViewModel(this),
             CollectionPageViewModel c when Find(c.Item.Kind, c.Item.Key) is { } fresh => new CollectionPageViewModel(this, fresh),
             _ => new HomePageViewModel(this),
         };
+        if (CurrentPage is PageViewModel newPage) newPage.ScrollOffset = offset;
         _replacingPage = false;
     }
 
@@ -1149,6 +1711,8 @@ public sealed partial class MainViewModel : ObservableObject
         "playlist" => Playlists.FirstOrDefault(p => p.Key == key),
         "liked" => Liked,
         "all" => _allTracks,
+        "folder" => Directory.Exists(key) || _library.Any(t => t.Path.StartsWith(key.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+            ? Folder(key) : null,
         "smart" => SmartPlaylists.FirstOrDefault(s => s.Key == key),
         _ => null,
     };
@@ -1227,7 +1791,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>«Далее в очереди»: сначала поставленное вручную, потом продолжение альбома или плейлиста.</summary>
     private void RefreshUpNext() =>
-        UpNext = Player.GetUpNext(30).Select(x => new UpNextItem(x.Track, x.Queued, x.Play)).ToList();
+        UpNext = Player.GetUpNext(50).Select((x, i) => new UpNextItem(x.Track, x.Queued, x.Play, i, Player.RemoveUpcoming)).ToList();
+
+    [RelayCommand]
+    private void ClearQueue() => Player.ClearUpcoming();
+
+    /// <summary>Текущий трек и всё, что за ним, одним новым плейлистом.</summary>
+    [RelayCommand]
+    private async Task SaveQueueAsPlaylist()
+    {
+        var tracks = new List<TrackItem>();
+        if (Player.CurrentTrack is { } current) tracks.Add(current);
+        tracks.AddRange(Player.Upcoming());
+        if (tracks.Count > 0) await CreatePlaylistAsync(tracks);
+    }
 
     private async Task UpdateNowPlayingAsync()
     {
@@ -1811,7 +2388,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var playlists = _playlistData.Select(p => new PlaylistItem(
             p.Id, p.Name,
-            p.Paths.Select(x => _byPath.GetValueOrDefault(x)).OfType<TrackItem>().ToList(),
+            PinnedFirst(p.Id, p.Paths.Select(x => _byPath.GetValueOrDefault(x)).OfType<TrackItem>().ToList()),
             Covers, Image("playlist", p.Id.ToString()), Open, Play)).ToList();
         Replace(Playlists, playlists);
 

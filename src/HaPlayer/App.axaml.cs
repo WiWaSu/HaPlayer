@@ -28,8 +28,10 @@ public partial class App : Application
             Ui.L.SetLanguage(settings.Language);
             var engine = new NAudioEngine { Output = settings.Output, LatencyMs = settings.LatencyMs };
             var covers = new CoverService();
+            Ui.SpectrumView.Engine = engine;
 
             // Тема и форматы применяются до создания окна, чтобы оно сразу открылось в нужных цветах.
+            Ui.ThemeService.RadiusFactor = settings.UiRadius;
             Ui.ThemeService.Apply(settings.Palette, settings.Surface, settings.CustomAccent);
             Ui.ThemeService.ApplyFont(settings.UiFont);
             AudioFormats.SetDisabled(settings.DisabledFormats);
@@ -60,9 +62,35 @@ public partial class App : Application
 
             // Значок в трее. Крестик прячет окно туда, если включено «Сворачивать в трей».
             var tray = new Ui.TrayController(this, desktop, window, vm);
+            // Ярлык в «Пуске» нужен Windows, чтобы показать название и значок в панели мультимедиа.
+            Task.Run(Ui.AppIdentity.EnsureStartMenuShortcut);
+            // Панель мультимедиа Windows и кнопки в миниатюре на панели задач.
+            var windowsMedia = new Ui.WindowsMedia(window, vm);
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             vm.ExitRequested = tray.Exit;
             if (settings.GlobalHotkeys) vm.SetGlobalHotkeys(true);
+
+            // Плашка при смене трека. Создаётся при первой смене, если включена в настройках.
+            TrackToastWindow? toast = null;
+            vm.Player.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(PlayerViewModel.CurrentTrack) || !settings.TrackToast) return;
+                // Проверяем после того, как трек запустился: при восстановлении сессии он стоит на паузе, плашка не нужна.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                if (vm.Player.CurrentTrack is not { } track || !vm.Player.IsPlaying) return;
+                toast ??= new TrackToastWindow
+                {
+                    Clicked = () =>
+                    {
+                        window.Show();
+                        window.Activate();
+                    },
+                };
+                toast.ShowTrack(track, settings.TrackToastCorner, window);
+                });
+            };
+            desktop.Exit += (_, _) => toast?.Close();
 
             // Мини-плеер: маленькое окно поверх всех, большое прячется, пока он открыт.
             MiniPlayerWindow? mini = null;
@@ -111,6 +139,7 @@ public partial class App : Application
             desktop.Exit += (_, _) =>
             {
                 vm.DisposeHotkeys();
+                windowsMedia.Dispose();
                 vm.Torrents.Shutdown();
                 settings.Save();
                 engine.Dispose();

@@ -7,9 +7,9 @@
   <!-- Одна страница для альбома, исполнителя и плейлиста -->
   <ScrollViewer>
     <StackPanel>
-      <Border Background="{Binding HeaderBrush}" Padding="24,64,24,24">
+      <Border Classes="pagehead" Background="{Binding HeaderBrush}">
         <Grid ColumnDefinitions="Auto,*">
-          <ui:CoverView Width="232" Height="232" Source="{Binding Item.Art}" CornerRadius="{Binding CoverRadius}"
+          <ui:CoverView Classes="herocover" Source="{Binding Item.Art}" CornerRadius="{Binding CoverRadius}"
                         IsLiked="{Binding Item.IsLikedCollection}"
                         BoxShadow="0 4 60 0 #80000000" />
           <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Bottom">
@@ -19,6 +19,8 @@
               <TextBlock Text="{Binding Owner}" FontSize="14" FontWeight="Bold" />
               <TextBlock Text="{Binding Meta}" FontSize="14" FontWeight="Medium" Foreground="#E6FFFFFF" />
             </StackPanel>
+            <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontSize="13" FontStyle="Italic"
+                       Foreground="#CCFFFFFF" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" Margin="0,8,0,0" />
           </StackPanel>
         </Grid>
       </Border>
@@ -33,6 +35,20 @@
             <Button Classes="icon large" Command="{Binding ShufflePlayCommand}" IsEnabled="{Binding HasTracks}"
                     VerticalAlignment="Center" ToolTip.Tip="{ui:T 'Играть в случайном порядке'}">
               <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="28" Height="28" />
+            </Button>
+            <Button Classes="icon large" Command="{Binding QueueCommand}" IsEnabled="{Binding HasTracks}"
+                    VerticalAlignment="Center" ToolTip.Tip="{ui:T 'В очередь'}">
+              <ui:Glyph Data="{x:Static ui:Icons.Queue}" Width="26" Height="26" />
+            </Button>
+            <Button Classes="icon large" Command="{Binding LikeAllCommand}" IsVisible="{Binding CanLikeAll}"
+                    VerticalAlignment="Center" ToolTip.Tip="{ui:T 'Все треки в любимые'}">
+              <Panel Width="28" Height="28">
+                <ui:Glyph Data="{x:Static ui:Icons.CirclePlus}" IsVisible="{Binding !AllLiked}" />
+                <Panel IsVisible="{Binding AllLiked}">
+                  <ui:Glyph Data="{x:Static ui:Icons.CircleFill}" Foreground="{DynamicResource AccentBrush}" />
+                  <ui:Glyph Data="{x:Static ui:Icons.Check}" Foreground="Black" StrokeThickness="3" />
+                </Panel>
+              </Panel>
             </Button>
             <Button x:Name="MoreButton" Classes="icon large" VerticalAlignment="Center"
                     ToolTip.Tip="{Binding MoreTip}">
@@ -65,10 +81,48 @@
           <TextBlock Text="{Binding EmptyText}" Classes="sub" FontSize="14" TextWrapping="Wrap" MaxWidth="520"
                      HorizontalAlignment="Left" IsVisible="{Binding !HasTracks}" />
 
-          <!-- Страница исполнителя: его альбомы обложками, как «Дискография» у Spotify -->
-          <StackPanel IsVisible="{Binding HasArtistAlbums}" Spacing="12" Margin="0,0,0,28">
-            <TextBlock Text="{ui:T 'Альбомы'}" Classes="h2" />
-            <ItemsControl ItemsSource="{Binding ArtistAlbums}" Margin="-12,0,0,0">
+          <!-- Страница исполнителя: вкладки «Альбомы», «Треки», «Появляется в» -->
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,20" IsVisible="{Binding IsArtist}">
+            <Button Classes="chip" Classes.active="{Binding ShowOwnAlbums}" Content="{ui:T 'Альбомы'}"
+                    Command="{Binding SelectArtistTabCommand}" CommandParameter="0" IsVisible="{Binding HasArtistAlbums}" />
+            <Button Classes="chip" Classes.active="{Binding ShowTrackList}" Content="{ui:T 'Треки'}"
+                    Command="{Binding SelectArtistTabCommand}" CommandParameter="1" />
+            <Button Classes="chip" Classes.active="{Binding ShowAppearsOn}" Content="{ui:T 'Появляется в'}"
+                    Command="{Binding SelectArtistTabCommand}" CommandParameter="2" IsVisible="{Binding HasAppearsOn}" />
+          </StackPanel>
+
+          <!-- Страница папки: вложенные папки -->
+          <ItemsControl ItemsSource="{Binding SubFolders}" Margin="-12,0,0,24" IsVisible="{Binding HasSubFolders}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:FolderItem">
+                <Button Classes="card" Command="{Binding OpenCommand}">
+                  <StackPanel Spacing="4">
+                    <Panel Margin="0,0,0,8">
+                      <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}" Badge="{Binding Badge}" />
+                      <Border Background="#99000000" CornerRadius="{DynamicResource R4}" Padding="6,4" Margin="8"
+                              HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <ui:Glyph Data="{x:Static ui:Icons.Folder}" Width="14" Height="14" Foreground="White" />
+                      </Border>
+                    </Panel>
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                    <TextBlock Text="{Binding CardSubtitle}" Classes="sub" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <StackPanel Spacing="12" Margin="0,0,0,28">
+            <StackPanel.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                <Binding Path="ShowOwnAlbums" />
+                <Binding Path="ShowAppearsOn" />
+              </MultiBinding>
+            </StackPanel.IsVisible>
+            <ItemsControl ItemsSource="{Binding TabAlbums}" Margin="-12,0,0,0">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
@@ -77,7 +131,7 @@
                   <Button Classes="card" Command="{Binding OpenCommand}">
                     <StackPanel Spacing="4">
                       <Panel Margin="0,0,0,8">
-                        <ui:CoverView Width="164" Height="164" CornerRadius="6" Source="{Binding Art}"
+                        <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}"
                                       BoxShadow="0 8 24 0 #80000000" />
                         <Button Classes="primary small float" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                 Width="48" Height="48" CornerRadius="24" Margin="0,0,8,8"
@@ -92,10 +146,9 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock Text="{ui:T 'Треки'}" Classes="h2" Margin="0,12,0,0" IsVisible="{Binding HasTracks}" />
           </StackPanel>
 
-          <StackPanel IsVisible="{Binding HasTracks}">
+          <StackPanel IsVisible="{Binding ShowTrackList}">
             <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,8"
                     Margin="0,0,0,8">
               <Grid ColumnDefinitions="40,5*,3*,120,120">

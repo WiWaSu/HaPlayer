@@ -258,6 +258,93 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         }
     }
 
+    // ---------- Разделы главной ----------
+
+    public sealed partial class HomeSection(string id, string name, SettingsPageViewModel owner) : ObservableObject
+    {
+        public string Id { get; } = id;
+        public string Name { get; } = name;
+
+        public bool IsShown
+        {
+            get => !owner._s.HomeHidden.Contains(Id);
+            set
+            {
+                owner._s.HomeHidden.Remove(Id);
+                if (!value) owner._s.HomeHidden.Add(Id);
+                owner._s.Save();
+                OnPropertyChanged();
+            }
+        }
+
+        [RelayCommand] private void Up() => owner.MoveSection(Id, -1);
+        [RelayCommand] private void Down() => owner.MoveSection(Id, 1);
+    }
+
+    private static readonly (string Id, string Name)[] SectionNames =
+        [("quick", "Быстрый доступ"), ("smart", "Подборки"), ("recent", "Недавно добавленные")];
+
+    public List<HomeSection> HomeSections
+    {
+        get
+        {
+            var order = _s.HomeOrder.Where(id => SectionNames.Any(n => n.Id == id)).ToList();
+            foreach (var n in SectionNames) if (!order.Contains(n.Id)) order.Add(n.Id);
+            _s.HomeOrder = order;
+            return order.Select(id => new HomeSection(id, L.T(SectionNames.First(n => n.Id == id).Name), this)).ToList();
+        }
+    }
+
+    private void MoveSection(string id, int delta)
+    {
+        var order = _s.HomeOrder;
+        var i = order.IndexOf(id);
+        var j = i + delta;
+        if (i < 0 || j < 0 || j >= order.Count) return;
+        (order[i], order[j]) = (order[j], order[i]);
+        _s.Save();
+        OnPropertyChanged(nameof(HomeSections));
+    }
+
+    // ---------- Плотность и скругления ----------
+
+    public List<string> DensityOptions { get; } = [L.T("Обычная"), L.T("Плотная")];
+
+    public int DensityIndex
+    {
+        get => _s.Dense ? 1 : 0;
+        set
+        {
+            _s.Dense = value == 1;
+            _s.Save();
+            OnPropertyChanged();
+            Main.DensityChanged?.Invoke(_s.Dense);
+            Main.ApplyListOptions();
+        }
+    }
+
+    private static readonly double[] Radii = [1, 0.5, 0];
+
+    public List<string> RadiusOptions { get; } = [L.T("Обычные"), L.T("Меньше"), L.T("Без скруглений")];
+
+    public int RadiusIndex
+    {
+        get
+        {
+            var i = Array.FindIndex(Radii, r => Math.Abs(r - _s.UiRadius) < 0.01);
+            return i < 0 ? 0 : i;
+        }
+        set
+        {
+            if (value < 0 || value >= Radii.Length) return;
+            _s.UiRadius = Radii[value];
+            _s.Save();
+            OnPropertyChanged();
+            ThemeService.RadiusFactor = _s.UiRadius;
+            Main.ApplyTheme();
+        }
+    }
+
     // ---------- Опции 1.6 ----------
 
     /// <summary>Сохраняет флаг настроек и сообщает разметке. after вызывается уже с новым значением.</summary>
@@ -285,6 +372,72 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     {
         get => _s.ShowPlayCount;
         set => SetFlag(value, v => _s.ShowPlayCount = v, Main.ApplyListOptions);
+    }
+
+    public bool TrackToast
+    {
+        get => _s.TrackToast;
+        set => SetFlag(value, v => _s.TrackToast = v);
+    }
+
+    private static readonly string[] Corners = ["bottomright", "topright", "bottomleft", "topleft"];
+
+    public List<string> CornerOptions { get; } = [L.T("Справа внизу"), L.T("Справа вверху"), L.T("Слева внизу"), L.T("Слева вверху")];
+
+    public int CornerIndex
+    {
+        get => Math.Max(0, Array.IndexOf(Corners, _s.TrackToastCorner));
+        set
+        {
+            if (value < 0 || value >= Corners.Length) return;
+            _s.TrackToastCorner = Corners[value];
+            _s.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowVisualizer
+    {
+        get => _s.ShowVisualizer;
+        set => SetFlag(value, v => _s.ShowVisualizer = v, Main.NotifyVisualizer);
+    }
+
+    private static readonly double[] Crossfades = [0, 2, 4, 6, 8, 12];
+
+    public List<string> CrossfadeOptions { get; } =
+        [L.T("Без паузы"), .. Crossfades.Skip(1).Select(s => L.F("Плавно, {0} с", s))];
+
+    public int CrossfadeIndex
+    {
+        get
+        {
+            var i = Array.FindIndex(Crossfades, c => Math.Abs(c - _s.CrossfadeSeconds) < 0.01);
+            return i < 0 ? 0 : i;
+        }
+        set
+        {
+            if (value < 0 || value >= Crossfades.Length) return;
+            Main.Player.CrossfadeSeconds = Crossfades[value];
+            _s.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public string BlacklistText => L.Plural(Main.BlacklistCount, "трек", "трека", "треков", "track", "tracks");
+    public bool HasBlacklist => Main.BlacklistCount > 0;
+
+    [RelayCommand]
+    private void ClearBlacklist()
+    {
+        Main.ClearBlacklist();
+        OnPropertyChanged(nameof(BlacklistText));
+        OnPropertyChanged(nameof(HasBlacklist));
+    }
+
+    public bool ShowRatings
+    {
+        get => _s.ShowRatings;
+        set => SetFlag(value, v => _s.ShowRatings = v, Main.ApplyListOptions);
     }
 
     public bool StrictTags

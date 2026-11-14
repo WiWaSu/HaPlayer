@@ -16,7 +16,7 @@
         </Grid>
 
         <Viewbox Stretch="Uniform" StretchDirection="Both">
-          <ui:CoverView Width="320" Height="320" CornerRadius="8" Source="{Binding Player.CurrentTrack.Album.Art}" />
+          <ui:CoverView Width="320" Height="320" CornerRadius="{DynamicResource R8}" Source="{Binding Player.CurrentTrack.Album.Art}" />
         </Viewbox>
 
         <Grid ColumnDefinitions="*,Auto">
@@ -45,25 +45,37 @@
         </Grid>
 
         <!-- Далее в очереди -->
-        <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="12,14">
+        <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="{DynamicResource R8}" Padding="12,14">
           <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Text="{ui:T 'Далее в очереди'}" FontSize="16" FontWeight="Bold" />
-              <Button Grid.Column="1" Classes="flat" Command="{Binding ToggleNowPlayingCommand}">
-                <TextBlock Classes="link" Text="{ui:T 'Открыть'}" FontSize="13" FontWeight="SemiBold"
-                           Foreground="{DynamicResource SubBrush}" />
-              </Button>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                <Button Classes="icon" Command="{Binding SaveQueueAsPlaylistCommand}" ToolTip.Tip="{ui:T 'Сохранить очередь как плейлист'}">
+                  <ui:Glyph Data="{x:Static ui:Icons.PlaylistAdd}" Width="16" Height="16" />
+                </Button>
+                <Button Classes="icon" Command="{Binding ClearQueueCommand}" ToolTip.Tip="{ui:T 'Очистить очередь'}"
+                        IsEnabled="{Binding !IsQueueEnd}">
+                  <ui:Glyph Data="{x:Static ui:Icons.Delete}" Width="16" Height="16" />
+                </Button>
+                <Button Classes="flat" Command="{Binding ToggleNowPlayingCommand}" Margin="6,0,0,0">
+                  <TextBlock Classes="link" Text="{ui:T 'Открыть'}" FontSize="13" FontWeight="SemiBold"
+                             Foreground="{DynamicResource SubBrush}" />
+                </Button>
+              </StackPanel>
             </Grid>
-            <ItemsControl ItemsSource="{Binding UpNextShort}">
+            <ItemsControl x:Name="UpNextList" ItemsSource="{Binding UpNextShort}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:UpNextItem">
-                  <Button Classes="row" Command="{Binding PlayCommand}">
-                    <Grid ColumnDefinitions="44,*">
+                  <Button Classes="row upnext" Command="{Binding PlayCommand}">
+                    <Grid ColumnDefinitions="44,*,Auto">
                       <ui:CoverView Width="44" Height="44" Source="{Binding Track.Album.Thumb}" />
                       <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding Track.Title}" FontSize="14" FontWeight="Medium" />
                         <TextBlock Text="{Binding Track.Artist}" Classes="sub" />
                       </StackPanel>
+                      <Button Grid.Column="2" Classes="icon rowx" Command="{Binding RemoveCommand}" ToolTip.Tip="{ui:T 'Убрать из очереди'}">
+                        <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="14" Height="14" />
+                      </Button>
                     </Grid>
                   </Button>
                 </DataTemplate>

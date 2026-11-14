@@ -63,6 +63,18 @@ public sealed class LibraryDb : IDisposable
                 path  TEXT PRIMARY KEY,
                 added INTEGER NOT NULL
             );
+            -- Заметки пользователя к трекам и альбомам. kind: track / album, key: путь или ключ альбома.
+            CREATE TABLE IF NOT EXISTS notes (
+                kind TEXT NOT NULL,
+                key  TEXT NOT NULL,
+                text TEXT NOT NULL,
+                PRIMARY KEY (kind, key)
+            );
+            -- Оценки треков от 1 до 5. Хранятся только здесь, в теги не пишутся.
+            CREATE TABLE IF NOT EXISTS ratings (
+                path  TEXT PRIMARY KEY,
+                stars INTEGER NOT NULL
+            );
             -- Фото, которые пользователь поставил сам. kind: playlist / album / artist.
             CREATE TABLE IF NOT EXISTS images (
                 kind TEXT NOT NULL,
@@ -78,6 +90,7 @@ public sealed class LibraryDb : IDisposable
         AddColumnIfMissing("tracks", "bitrate", "INTEGER NOT NULL DEFAULT 0");
         AddColumnIfMissing("tracks", "sample_rate", "INTEGER NOT NULL DEFAULT 0");
         AddColumnIfMissing("tracks", "channels", "INTEGER NOT NULL DEFAULT 0");
+        AddColumnIfMissing("tracks", "genre", "TEXT NOT NULL DEFAULT ''");
     }
 
     private static void DeleteJournal(string file)
@@ -110,7 +123,7 @@ public sealed class LibraryDb : IDisposable
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
                 SELECT path, title, artist, album, album_artist, track_no, disc_no, year, duration, mtime,
-                       user_album_key, user_artist, added, bitrate, sample_rate, channels
+                       user_album_key, user_artist, added, bitrate, sample_rate, channels, genre
                 FROM tracks ORDER BY added, rowid
                 """;
             using var r = cmd.ExecuteReader();
@@ -135,6 +148,7 @@ public sealed class LibraryDb : IDisposable
                     Bitrate = r.GetInt32(13),
                     SampleRate = r.GetInt32(14),
                     Channels = r.GetInt32(15),
+                    Genre = r.GetString(16),
                 });
             }
             return list;
@@ -152,14 +166,15 @@ public sealed class LibraryDb : IDisposable
             cmd.Transaction = tx;
             cmd.CommandText = """
                 INSERT INTO tracks (path, title, artist, album, album_artist, track_no, disc_no, year, duration, mtime, added,
-                                    bitrate, sample_rate, channels)
+                                    bitrate, sample_rate, channels, genre)
                 VALUES ($path, $title, $artist, $album, $albumArtist, $trackNo, $discNo, $year, $duration, $mtime, $added,
-                        $bitrate, $sampleRate, $channels)
+                        $bitrate, $sampleRate, $channels, $genre)
                 ON CONFLICT(path) DO UPDATE SET
                     title = excluded.title, artist = excluded.artist, album = excluded.album,
                     album_artist = excluded.album_artist, track_no = excluded.track_no, disc_no = excluded.disc_no,
                     year = excluded.year, duration = excluded.duration, mtime = excluded.mtime,
-                    bitrate = excluded.bitrate, sample_rate = excluded.sample_rate, channels = excluded.channels
+                    bitrate = excluded.bitrate, sample_rate = excluded.sample_rate, channels = excluded.channels,
+                    genre = excluded.genre
                 """;
             var pPath = cmd.Parameters.Add("$path", SqliteType.Text);
             var pTitle = cmd.Parameters.Add("$title", SqliteType.Text);
@@ -175,6 +190,7 @@ public sealed class LibraryDb : IDisposable
             var pBitrate = cmd.Parameters.Add("$bitrate", SqliteType.Integer);
             var pSampleRate = cmd.Parameters.Add("$sampleRate", SqliteType.Integer);
             var pChannels = cmd.Parameters.Add("$channels", SqliteType.Integer);
+            var pGenre = cmd.Parameters.Add("$genre", SqliteType.Text);
 
             var now = DateTime.UtcNow.Ticks;
             foreach (var t in tracks)
@@ -193,6 +209,7 @@ public sealed class LibraryDb : IDisposable
                 pBitrate.Value = t.Bitrate;
                 pSampleRate.Value = t.SampleRate;
                 pChannels.Value = t.Channels;
+                pGenre.Value = t.Genre;
                 cmd.ExecuteNonQuery();
             }
             tx.Commit();
@@ -429,14 +446,83 @@ public sealed class LibraryDb : IDisposable
             using var tx = _conn.BeginTransaction();
             using var cmd = _conn.CreateCommand();
             cmd.Transaction = tx;
-            cmd.CommandText = "UPDATE tracks SET bitrate = $b, sample_rate = $s, channels = $c WHERE path = $p";
+            cmd.CommandText = "UPDATE tracks SET bitrate = $b, sample_rate = $s, channels = $c, genre = $g WHERE path = $p";
+            var pg = cmd.Parameters.Add("$g", SqliteType.Text);
             var pb = cmd.Parameters.Add("$b", SqliteType.Integer);
             var ps = cmd.Parameters.Add("$s", SqliteType.Integer);
             var pc = cmd.Parameters.Add("$c", SqliteType.Integer);
             var pp = cmd.Parameters.Add("$p", SqliteType.Text);
             foreach (var t in tracks)
             {
-                pb.Value = t.Bitrate; ps.Value = t.SampleRate; pc.Value = t.Channels; pp.Value = t.Path;
+                pb.Value = t.Bitrate; ps.Value = t.SampleRate; pc.Value = t.Channels; pp.Value = t.Path; pg.Value = t.Genre;
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+
+    // ---------- Заметки ----------
+
+    public Dictionary<(string Kind, string Key), string> LoadNotes()
+    {
+        lock (_lock)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT kind, key, text FROM notes";
+            using var r = cmd.ExecuteReader();
+            var map = new Dictionary<(string, string), string>();
+            while (r.Read()) map[(r.GetString(0), r.GetString(1))] = r.GetString(2);
+            return map;
+        }
+    }
+
+    /// <summary>Пустой текст удаляет заметку.</summary>
+    public void SetNote(string kind, string key, string text)
+    {
+        lock (_lock)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = string.IsNullOrWhiteSpace(text)
+                ? "DELETE FROM notes WHERE kind = $k AND key = $key"
+                : "INSERT INTO notes (kind, key, text) VALUES ($k, $key, $t) ON CONFLICT(kind, key) DO UPDATE SET text = excluded.text";
+            cmd.Parameters.AddWithValue("$k", kind);
+            cmd.Parameters.AddWithValue("$key", key);
+            cmd.Parameters.AddWithValue("$t", text.Trim());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    // ---------- Оценки ----------
+
+    public Dictionary<string, int> LoadRatings()
+    {
+        lock (_lock)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT path, stars FROM ratings";
+            using var r = cmd.ExecuteReader();
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            while (r.Read()) map[r.GetString(0)] = r.GetInt32(1);
+            return map;
+        }
+    }
+
+    /// <summary>Ставит оценку 1–5. 0 убирает оценку.</summary>
+    public void SetRating(IEnumerable<string> paths, int stars)
+    {
+        lock (_lock)
+        {
+            using var tx = _conn.BeginTransaction();
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = stars > 0
+                ? "INSERT INTO ratings (path, stars) VALUES ($p, $s) ON CONFLICT(path) DO UPDATE SET stars = excluded.stars"
+                : "DELETE FROM ratings WHERE path = $p";
+            var pp = cmd.Parameters.Add("$p", SqliteType.Text);
+            cmd.Parameters.AddWithValue("$s", stars);
+            foreach (var p in paths)
+            {
+                pp.Value = p;
                 cmd.ExecuteNonQuery();
             }
             tx.Commit();

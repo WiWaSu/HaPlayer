@@ -42,6 +42,7 @@ public static class TagReader
 
             track.AlbumArtist = FirstNonEmpty(tag.FirstAlbumArtist);
             if (!string.IsNullOrWhiteSpace(tag.Album)) track.Album = tag.Album.Trim();
+            track.Genre = tag.FirstGenre?.Trim() ?? "";
             track.TrackNo = (int)tag.Track;
             track.DiscNo = (int)tag.Disc;
             track.Year = (int)tag.Year;
@@ -71,6 +72,7 @@ public static class TagReader
         {
             using var file = TagLib.File.Create(track.Path, TagLib.ReadStyle.Average);
             ReadTech(file, track);
+            track.Genre = file.Tag.FirstGenre?.Trim() ?? "";
             return track.SampleRate > 0;
         }
         catch

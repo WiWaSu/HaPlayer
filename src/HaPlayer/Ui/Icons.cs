@@ -72,6 +72,11 @@ public static class Icons
     public static readonly Geometry Collapse =Parse("M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7");
     public static readonly Geometry PanelRight = Parse("M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M15 3v18");
 
+    public static readonly Geometry Lyrics = Parse("M4 6h16 M4 10h12 M4 14h16 M4 18h9");
+    public static readonly Geometry Immersive = Parse("M8 3H5a2 2 0 0 0-2 2v3 M21 8V5a2 2 0 0 0-2-2h-3 M3 16v3a2 2 0 0 0 2 2h3 M16 21h3a2 2 0 0 0 2-2v-3 M9 9h6v6H9z");
+    public static readonly Geometry Stats = Parse("M3 3v18h18 M7 16v-4 M12 16V8 M17 16v-7");
+    public static readonly Geometry Moon = Parse("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z");
+
     private static readonly HashSet<Geometry> SolidSet = [Play, Pause, Next, Prev, Heart, Dot, CircleFill];
 
     /// <summary>Залитый значок или линейный.</summary>

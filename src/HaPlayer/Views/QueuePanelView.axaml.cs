@@ -9,6 +9,7 @@ public partial class QueuePanelView : UserControl
     {
         InitializeComponent();
         // Перетащенные треки встают в конец очереди «Далее».
+        TrackDrag.AttachQueueReorder(UpNextList, () => (DataContext as MainViewModel)?.Player);
         TrackDrag.AttachTarget(this, _ => true, (_, tracks) => (DataContext as MainViewModel)?.Player.AddToQueue(tracks));
     }
 }

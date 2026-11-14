@@ -9,9 +9,9 @@
     <!-- Сейчас играет: нажатие на обложку или название разворачивает экран «Сейчас играет» -->
     <Grid ColumnDefinitions="Auto,Auto" VerticalAlignment="Center" HorizontalAlignment="Left"
           IsVisible="{Binding Player.HasTrack}">
-      <Button Classes="flat" Command="{Binding ToggleNowPlayingCommand}" ToolTip.Tip="{ui:T 'Развернуть'}">
-        <Grid ColumnDefinitions="56,*">
-          <ui:CoverView Width="56" Height="56" Source="{Binding Player.CurrentTrack.Album.Thumb}" />
+      <Button x:Name="TrackButton" Classes="flat" Command="{Binding ToggleNowPlayingCommand}" ToolTip.Tip="{ui:T 'Развернуть'}">
+        <Grid ColumnDefinitions="Auto,*">
+          <ui:CoverView Classes="barcover" Source="{Binding Player.CurrentTrack.Album.Thumb}" />
           <StackPanel Grid.Column="1" Margin="14,0,4,0" VerticalAlignment="Center" Spacing="2" MaxWidth="260">
             <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Title}" FontSize="14" FontWeight="Medium" />
             <TextBlock Text="{Binding Player.CurrentTrack.Artist}" FontSize="12" Foreground="{DynamicResource SubBrush}" />
@@ -81,6 +81,9 @@
         <ui:Glyph Data="{Binding Player.VolumeIcon}" Width="17" Height="17" />
       </Button>
       <Slider Classes="vol" Width="96" Minimum="0" Maximum="100" Value="{Binding Player.Volume, Mode=TwoWay}" />
+      <Button x:Name="SleepButton" Classes="icon dotted" Classes.on="{Binding IsSleepActive}" ToolTip.Tip="{Binding SleepTip}">
+        <ui:Glyph Data="{x:Static ui:Icons.Moon}" Width="17" Height="17" />
+      </Button>
       <Button Classes="icon" Command="{Binding ToggleMiniPlayerCommand}" ToolTip.Tip="{ui:T 'Мини-плеер'}" Margin="6,0,0,0">
         <ui:Glyph Data="{x:Static ui:Icons.MiniPlayer}" Width="17" Height="17" />
       </Button>

@@ -51,6 +51,16 @@ public static class ThemeService
 
     public static readonly IReadOnlyList<string> Fonts = ["Inter", "Segoe UI", "Bahnschrift"];
 
+    /// <summary>Множитель скруглений из настроек: 1, 0.5 или 0. Круглые кнопки и фото исполнителей не затрагивает.</summary>
+    public static double RadiusFactor { get; set; } = 1;
+
+    public static CornerRadius Radius(double value) => new(value * RadiusFactor);
+
+    private static void ApplyRadii(Avalonia.Controls.IResourceDictionary r)
+    {
+        foreach (var v in new[] { 3, 4, 5, 6, 8, 10, 12 }) r["R" + v] = Radius(v);
+    }
+
     private static Avalonia.Styling.Style? _fontStyle;
 
     /// <summary>Шрифт интерфейса для всех окон, меню и подсказок.</summary>
@@ -134,6 +144,7 @@ public static class ThemeService
         r["BgBrush"] = new SolidColorBrush(s.Background);
         r["PanelBrush"] = new SolidColorBrush(s.Panel);
         ApplySurfaceColors(r, s.IsLight, p.Accent);
+        ApplyRadii(r);
 
         Changed?.Invoke();
     }
