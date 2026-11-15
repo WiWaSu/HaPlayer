@@ -199,6 +199,20 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     // ---------- Язык ----------
 
+    public List<string> ViewModes { get; } = [L.T("Современный"), L.T("Классический")];
+
+    /// <summary>Вид меняется сразу, без перезапуска: обе раскладки работают с одними данными.</summary>
+    public int ViewModeIndex
+    {
+        get => Main.IsClassic ? 1 : 0;
+        set
+        {
+            if (value < 0 || value == ViewModeIndex) return;
+            Main.SetViewMode(value == 1 ? "classic" : "modern");
+            OnPropertyChanged();
+        }
+    }
+
     public List<string> Languages { get; } = ["English", "Русский"];
 
     public int LanguageIndex
@@ -374,6 +388,46 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         set => SetFlag(value, v => _s.ShowPlayCount = v, Main.ApplyListOptions);
     }
 
+    public bool HasBackgroundImage => Main.HasBackgroundImage;
+
+    [RelayCommand]
+    private async Task PickBackground()
+    {
+        await Main.PickBackgroundAsync();
+        OnPropertyChanged(nameof(HasBackgroundImage));
+    }
+
+    [RelayCommand]
+    private void ClearBackground()
+    {
+        Main.ClearBackground();
+        OnPropertyChanged(nameof(HasBackgroundImage));
+    }
+
+    public double BackgroundDim
+    {
+        get => _s.BackgroundDim * 100;
+        set
+        {
+            _s.BackgroundDim = Math.Clamp(value / 100, 0, 0.9);
+            _s.Save();
+            OnPropertyChanged();
+            Main.ApplyBackground();
+        }
+    }
+
+    public double PanelOpacity
+    {
+        get => _s.PanelOpacity * 100;
+        set
+        {
+            _s.PanelOpacity = Math.Clamp(value / 100, 0.4, 1);
+            _s.Save();
+            OnPropertyChanged();
+            Main.ApplyBackground();
+        }
+    }
+
     public bool TrackToast
     {
         get => _s.TrackToast;
@@ -400,6 +454,33 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     {
         get => _s.ShowVisualizer;
         set => SetFlag(value, v => _s.ShowVisualizer = v, Main.NotifyVisualizer);
+    }
+
+    private static readonly int[] PauseFades = [0, 200, 500, 1000];
+
+    public List<string> PauseFadeOptions { get; } =
+        [L.T("Сразу"), .. PauseFades.Skip(1).Select(ms => L.F("Плавно, {0} с", (ms / 1000.0).ToString("0.#", L.Culture)))];
+
+    public int PauseFadeIndex
+    {
+        get
+        {
+            var i = Array.IndexOf(PauseFades, _s.PauseFadeMs);
+            return i < 0 ? 0 : i;
+        }
+        set
+        {
+            if (value < 0 || value >= PauseFades.Length) return;
+            _s.PauseFadeMs = PauseFades[value];
+            _s.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool PauseOnDisconnect
+    {
+        get => _s.PauseOnDisconnect;
+        set => SetFlag(value, v => _s.PauseOnDisconnect = v);
     }
 
     private static readonly double[] Crossfades = [0, 2, 4, 6, 8, 12];

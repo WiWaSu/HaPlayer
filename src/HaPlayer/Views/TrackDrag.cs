@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -55,6 +55,58 @@ public static class TrackDrag
             data.Set(Format, payload);
             await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    /// <summary>Формат перетаскивания внутри «Далее в очереди»: номер строки.</summary>
+    public const string QueueFormat = "haplayer/upnext";
+
+    /// <summary>Строки «Далее в очереди» можно перетаскивать, меняя порядок.</summary>
+    public static void AttachQueueReorder(ItemsControl list, Func<PlayerViewModel?> player)
+    {
+        Point? start = null;
+        UpNextItem? dragged = null;
+
+        list.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            start = null;
+            if (!e.GetCurrentPoint(list).Properties.IsLeftButtonPressed) return;
+            if ((e.Source as Control)?.DataContext is not UpNextItem item) return;
+            dragged = item;
+            start = e.GetPosition(list);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        list.AddHandler(InputElement.PointerReleasedEvent, (_, _) => start = null,
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        list.AddHandler(InputElement.PointerMovedEvent, async (_, e) =>
+        {
+            if (start is not { } from || dragged == null) return;
+            if (!e.GetCurrentPoint(list).Properties.IsLeftButtonPressed)
+            {
+                start = null;
+                return;
+            }
+            var d = e.GetPosition(list) - from;
+            if (Math.Abs(d.X) < Threshold && Math.Abs(d.Y) < Threshold) return;
+            start = null;
+            var data = new DataObject();
+            data.Set(QueueFormat, dragged.Index);
+            await DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        DragDrop.SetAllowDrop(list, true);
+        list.AddHandler(DragDrop.DragOverEvent, (_, e) =>
+        {
+            if (!e.Data.Contains(QueueFormat)) return;
+            e.DragEffects = (e.Source as Control)?.DataContext is UpNextItem ? DragDropEffects.Move : DragDropEffects.None;
+            e.Handled = true;
+        });
+        list.AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            if (e.Data.Get(QueueFormat) is not int fromIndex) return;
+            if ((e.Source as Control)?.DataContext is UpNextItem target) player()?.MoveUpcoming(fromIndex, target.Index);
+            e.Handled = true;
+        });
     }
 
     public static List<TrackItem>? GetTracks(DragEventArgs e) => e.Data.Get(Format) as List<TrackItem>;

@@ -1,0 +1,41 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.YearsView"
+             x:DataType="vm:YearsPageViewModel">
+  <!-- Альбомы по годам: год крупно, под ним обложки -->
+  <ScrollViewer>
+    <StackPanel Margin="24,56,24,24" Spacing="8">
+      <TextBlock Text="{ui:T 'По годам'}" Classes="hero" />
+      <ItemsControl ItemsSource="{Binding Groups}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:YearGroup">
+            <Grid ColumnDefinitions="110,*" Margin="0,0,0,20">
+              <StackPanel Spacing="2" Margin="0,8,0,0">
+                <TextBlock Text="{Binding Year}" FontSize="28" FontWeight="ExtraBold" LetterSpacing="-0.6" />
+                <TextBlock Text="{Binding Count}" Classes="sub" FontSize="12" />
+              </StackPanel>
+              <ItemsControl Grid.Column="1" ItemsSource="{Binding Albums}" Margin="-12,0,0,0">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AlbumItem">
+                    <Button Classes="card" Command="{Binding OpenCommand}">
+                      <StackPanel Spacing="4">
+                        <ui:CoverView Classes="cardcover" CornerRadius="{DynamicResource R6}" Source="{Binding Art}" Margin="0,0,0,8" />
+                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" />
+                        <TextBlock Text="{Binding Artist}" Classes="sub" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

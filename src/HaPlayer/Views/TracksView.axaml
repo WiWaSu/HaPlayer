@@ -12,7 +12,7 @@
     <DockPanel IsVisible="{Binding HasMusic}">
       <Border DockPanel.Dock="Top" Background="{Binding HeaderBrush}" Padding="24,40,24,20">
         <StackPanel Orientation="Horizontal" Spacing="24">
-          <Border Width="152" Height="152" CornerRadius="4" BoxShadow="0 4 60 0 #80000000"
+          <Border Width="152" Height="152" CornerRadius="{DynamicResource R4}" BoxShadow="0 4 60 0 #80000000"
                   Background="{DynamicResource LibraryArtBrush}">
             <ui:Glyph Data="{x:Static ui:Icons.Library}" Width="64" Height="64" Foreground="White" />
           </Border>
@@ -26,12 +26,29 @@
 
       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="20" Margin="24,20,24,16">
         <Button Classes="primary" Command="{Binding PlayAllCommand}" ToolTip.Tip="{ui:T 'Играть все'}">
-          <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="28" Height="28" />
+          <ui:Glyph Data="{Binding PlayIcon}" Width="28" Height="28" />
         </Button>
         <Button Classes="icon large" Command="{Binding ShufflePlayCommand}" VerticalAlignment="Center"
                 ToolTip.Tip="{ui:T 'Играть в случайном порядке'}">
           <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="28" Height="28" />
         </Button>
+        <!-- Быстрые фильтры: повторное нажатие снимает -->
+        <WrapPanel VerticalAlignment="Center" Margin="12,0,0,0">
+          <Button Classes="chip" Classes.active="{Binding IsToday}" Content="{ui:T 'Сегодня'}" Margin="0,0,8,0"
+                  Command="{Binding SetFilterCommand}" CommandParameter="today" />
+          <Button Classes="chip" Classes.active="{Binding IsWeek}" Content="{ui:T 'Неделя'}" Margin="0,0,8,0"
+                  Command="{Binding SetFilterCommand}" CommandParameter="week" />
+          <Button Classes="chip" Classes.active="{Binding IsLossless}" Content="Lossless" Margin="0,0,8,0"
+                  Command="{Binding SetFilterCommand}" CommandParameter="lossless" />
+          <Button Classes="chip" Classes.active="{Binding IsNew}" Content="2020+" Margin="0,0,8,0"
+                  Command="{Binding SetFilterCommand}" CommandParameter="new" />
+          <Button Classes="chip" Classes.active="{Binding IsRated}" Content="★ 4+" Margin="0,0,8,0"
+                  Command="{Binding SetFilterCommand}" CommandParameter="rated" IsVisible="{Binding ShowRatedChip}" />
+          <Button Classes="chip" Classes.active="{Binding IsMissing}" Content="{ui:T 'Нет файла'}" Margin="0,0,8,0"
+                  Command="{Binding SetFilterCommand}" CommandParameter="missing" IsVisible="{Binding ShowMissingChip}" />
+          <Button Classes="pill dark" Content="{ui:T 'Убрать все из медиатеки'}" Command="{Binding RemoveMissingCommand}"
+                  IsVisible="{Binding CanRemoveMissing}" />
+        </WrapPanel>
       </StackPanel>
 
       <Border DockPanel.Dock="Top" Margin="24,0" BorderBrush="{DynamicResource DividerBrush}"

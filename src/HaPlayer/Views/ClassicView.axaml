@@ -1,0 +1,311 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.ClassicView"
+             x:DataType="vm:MainViewModel">
+  <!-- Классический вид: всё в одном окне, плотно, без крупных обложек. Цвета и шрифты те же, что у современного. -->
+  <UserControl.Styles>
+    <!-- На паузе визуализатор не нужен: без звука он рисует только пунктир -->
+    <Style Selector="ui|SpectrumView.cviz">
+      <Setter Property="Opacity" Value="0.12" />
+    </Style>
+    <Style Selector="ui|SpectrumView.cviz.idle">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="TextBlock.cell">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+    <Style Selector="TextBlock.cell.dim">
+      <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
+    </Style>
+    <Style Selector="TextBlock.cell.playing">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.head">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+    <Style Selector="ListBox.ctable ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R3}" />
+    </Style>
+    <!-- Выделенный узел подсвечивается так же спокойно, как строка списка, а не заливкой акцентом -->
+    <Style Selector="TreeView.ctree TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource Ov1A}" />
+    </Style>
+    <Style Selector="TreeView.ctree TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource Ov33}" />
+    </Style>
+    <Style Selector="TreeView.ctree TreeViewItem:selected:pointerover /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource Ov40}" />
+    </Style>
+    <Style Selector="TreeView.ctree TreeViewItem:selected:focus /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource Ov33}" />
+    </Style>
+    <Style Selector="TreeView.ctree TreeViewItem">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R4}" />
+    </Style>
+    <Style Selector="Button.ctab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="12,6,6,6" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R6}" />
+      <Setter Property="Foreground" Value="{DynamicResource SubBrush}" />
+    </Style>
+    <Style Selector="Button.ctab.active">
+      <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="Button.ctab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Ov1A}" />
+    </Style>
+    <Style Selector="Button.ctab Button.tabx">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.ctab:pointerover Button.tabx, Button.ctab.active Button.tabx">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- Узкое окно: без колонок альбома и формата; совсем узкое: без дерева медиатеки -->
+    <Style Selector=":is(Window).narrow TextBlock.colfmt">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(Window).tiny TextBlock.colalbum">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="40,Auto,*,28" Margin="8,0,8,4">
+
+    <!-- Заголовок окна: за пустое место окно перетаскивается, справа системные кнопки -->
+    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="4,0,0,0">
+      <Image Source="avares://HaPlayer/Assets/logo-64.png" Width="22" Height="22" IsHitTestVisible="False" />
+      <TextBlock Text="HaPlayer" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SubBrush}"
+                 VerticalAlignment="Center" IsHitTestVisible="False" />
+      <Button Classes="pill" IsVisible="{Binding HasUpdate}" Command="{Binding InstallUpdateCommand}" Padding="12,4"
+              ToolTip.Tip="{ui:T 'Обновить HaPlayer'}">
+        <TextBlock Text="{Binding UpdateText}" FontSize="12" />
+      </Button>
+    </StackPanel>
+
+
+    <!-- ===== Панель «сейчас играет» ===== -->
+    <Border Grid.Row="1" Classes="panel" Padding="14,12" Margin="0,0,0,8" ClipToBounds="True">
+      <Panel>
+        <ui:SpectrumView VerticalAlignment="Top" HorizontalAlignment="Center" Width="520" Height="64" Classes="cviz" Bars="48" Margin="0,8,0,0"
+                         IsVisible="{Binding ShowVisualizer}" Classes.idle="{Binding !Player.IsPlaying}" />
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto">
+          <ui:CoverView Grid.RowSpan="2" Width="84" Height="84" CornerRadius="{DynamicResource R6}" Margin="0,0,14,0"
+                        Source="{Binding Player.CurrentTrack.Album.Thumb}" VerticalAlignment="Top" />
+
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="0,0,16,0" ClipToBounds="True">
+            <TextBlock Text="{Binding Player.CurrentTrack.Title}" FontSize="19" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="flat" Command="{Binding OpenCurrentArtistCommand}">
+                <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.Artist}" FontSize="13" Foreground="{DynamicResource SubBrush}" />
+              </Button>
+              <TextBlock Text="—" FontSize="13" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"
+                         IsVisible="{Binding Player.HasTrack}" />
+              <Button Classes="flat" Command="{Binding OpenCurrentAlbumCommand}">
+                <TextBlock Classes="link" Text="{Binding Player.CurrentTrack.AlbumName}" FontSize="13" Foreground="{DynamicResource SubBrush}"
+                           TextTrimming="CharacterEllipsis" MaxWidth="360" />
+              </Button>
+            </StackPanel>
+            <TextBlock Text="{Binding Player.CurrentTrack.TechText}" FontSize="12" Foreground="{DynamicResource MutedBrush}" />
+          </StackPanel>
+
+          <!-- Крупное время -->
+          <StackPanel x:Name="TimeBlock" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,24,0">
+            <TextBlock Text="{Binding Player.PositionText}" FontSize="34" FontWeight="Bold" HorizontalAlignment="Right"
+                       />
+            <TextBlock Text="{Binding Player.DurationText}" FontSize="12" Foreground="{DynamicResource SubBrush}"
+                       HorizontalAlignment="Right" />
+          </StackPanel>
+
+          <!-- Кнопки -->
+          <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+              <Button Classes="icon" Command="{Binding Player.StopCommand}" ToolTip.Tip="{ui:T 'Стоп (V)'}">
+                <ui:Glyph Data="{x:Static ui:Icons.Stop}" Width="16" Height="16" />
+              </Button>
+              <Button Classes="icon" Command="{Binding Player.PreviousCommand}" ToolTip.Tip="{ui:T 'Назад (Z)'}">
+                <ui:Glyph Data="{x:Static ui:Icons.Prev}" Width="17" Height="17" />
+              </Button>
+              <Button Classes="play" Command="{Binding Player.PlayPauseCommand}" ToolTip.Tip="{ui:T 'Играть / пауза (пробел)'}">
+                <ui:Glyph Data="{Binding Player.PlayIcon}" Width="17" Height="17" />
+              </Button>
+              <Button Classes="icon" Command="{Binding Player.NextCommand}" ToolTip.Tip="{ui:T 'Далее (B)'}">
+                <ui:Glyph Data="{x:Static ui:Icons.Next}" Width="17" Height="17" />
+              </Button>
+              <Button Classes="icon dotted" Classes.on="{Binding Player.Shuffle}" Command="{Binding Player.ToggleShuffleCommand}"
+                      ToolTip.Tip="{ui:T 'Случайный порядок (S)'}" Margin="8,0,0,0">
+                <ui:Glyph Data="{x:Static ui:Icons.Shuffle}" Width="16" Height="16" />
+              </Button>
+              <Button Classes="icon dotted" Classes.on="{Binding Player.IsRepeatOn}" Command="{Binding Player.CycleRepeatCommand}"
+                      ToolTip.Tip="{Binding Player.RepeatTip}">
+                <ui:Glyph Data="{Binding Player.RepeatIcon}" Width="16" Height="16" />
+              </Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+              <Button Classes="icon" Command="{Binding Player.ToggleMuteCommand}" ToolTip.Tip="{ui:T 'Без звука'}">
+                <ui:Glyph Data="{Binding Player.VolumeIcon}" Width="16" Height="16" />
+              </Button>
+              <Slider Width="110" Minimum="0" Maximum="100" Value="{Binding Player.Volume}" VerticalAlignment="Center" />
+              <Button Classes="icon dotted" Classes.on="{Binding Equalizer.Enabled}" Command="{Binding ToggleEqualizerCommand}"
+                      ToolTip.Tip="{ui:T 'Эквалайзер (E)'}" Margin="6,0,0,0">
+                <ui:Glyph Data="{x:Static ui:Icons.Equalizer}" Width="16" Height="16" />
+              </Button>
+              <Button x:Name="SleepButton" Classes="icon dotted" Classes.on="{Binding IsSleepActive}" ToolTip.Tip="{Binding SleepTip}">
+                <ui:Glyph Data="{x:Static ui:Icons.Moon}" Width="16" Height="16" />
+              </Button>
+              <Button Classes="icon" Command="{Binding ToggleMiniPlayerCommand}" ToolTip.Tip="{ui:T 'Мини-плеер'}">
+                <ui:Glyph Data="{x:Static ui:Icons.MiniPlayer}" Width="16" Height="16" />
+              </Button>
+              <Button Classes="icon" Classes.on="{Binding IsStatsActive}" Command="{Binding GoStatsCommand}" ToolTip.Tip="{ui:T 'Итоги'}">
+                <ui:Glyph Data="{x:Static ui:Icons.Stats}" Width="16" Height="16" />
+              </Button>
+              <Button Classes="icon" Command="{Binding GoSettingsCommand}" ToolTip.Tip="{Binding SettingsTip}">
+                <ui:Glyph Data="{x:Static ui:Icons.Settings}" Width="16" Height="16" />
+              </Button>
+            </StackPanel>
+          </StackPanel>
+
+          <!-- В узком окне крупного времени нет: место нужнее кнопкам, время мелко у перемотки -->
+          <TextBlock x:Name="SmallTime" Grid.Row="1" IsVisible="False" FontSize="12" Foreground="{DynamicResource SubBrush}"
+                     VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,4,14,-6">
+            <Run Text="{Binding Player.PositionText}" /><Run Text=" / " /><Run Text="{Binding Player.DurationText}" />
+          </TextBlock>
+          <!-- Перемотка во всю ширину -->
+          <Slider Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,4,0,-6" Minimum="0"
+                  Maximum="{Binding Player.SliderMaximum}" Value="{Binding Player.Position, Mode=TwoWay}"
+                  IsEnabled="{Binding Player.HasTrack}" />
+        </Grid>
+      </Panel>
+    </Border>
+
+    <!-- ===== Медиатека и таблица ===== -->
+    <Grid x:Name="Body" Grid.Row="2" ColumnDefinitions="300,6,*">
+      <!-- Дерево медиатеки -->
+      <Border x:Name="TreePanel" Classes="panel" Padding="8">
+        <DockPanel>
+          <WrapPanel DockPanel.Dock="Top" Margin="4,2,0,6">
+            <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsTreeArtists}" Content="{ui:T 'Исполнители'}"
+                    Command="{Binding SetTreeModeCommand}" CommandParameter="Artists" />
+            <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsTreeAlbums}" Content="{ui:T 'Альбомы'}"
+                    Command="{Binding SetTreeModeCommand}" CommandParameter="Albums" />
+            <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsTreeFolders}" Content="{ui:T 'Папки'}"
+                    Command="{Binding SetTreeModeCommand}" CommandParameter="Folders" />
+            <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsTreePlaylists}" Content="{ui:T 'Плейлисты'}"
+                    Command="{Binding SetTreeModeCommand}" CommandParameter="Playlists" />
+          </WrapPanel>
+          <TreeView x:Name="Tree" Classes="ctree" ItemsSource="{Binding ClassicTree}">
+            <TreeView.ItemTemplate>
+              <TreeDataTemplate DataType="vm:ClassicNode" ItemsSource="{Binding Children}">
+                <Grid ColumnDefinitions="Auto,*,Auto" Background="Transparent" ToolTip.Tip="{Binding Name}">
+                  <ui:Glyph Data="{Binding Icon}" Width="14" Height="14" Foreground="{DynamicResource SubBrush}" Margin="0,0,8,0" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding Sub}" FontSize="11" Foreground="{DynamicResource MutedBrush}"
+                             Margin="8,0,4,0" VerticalAlignment="Center" MaxWidth="110" TextTrimming="CharacterEllipsis" />
+                </Grid>
+              </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter x:Name="Splitter" Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
+
+      <Border Grid.Column="2" Classes="panel" ClipToBounds="True">
+        <Panel>
+          <!-- Настройки и «Итоги» открываются на месте таблицы -->
+          <ContentControl Content="{Binding CurrentPage}" IsVisible="{Binding IsClassicPage}" />
+
+          <DockPanel IsVisible="{Binding !IsClassicPage}">
+            <!-- Вкладки и поиск -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,8,8,4">
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding ClassicTabs}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ClassicTab">
+                      <Button Classes="ctab" Classes.active="{Binding IsActive}" Command="{Binding SelectCommand}" ToolTip.Tip="{Binding Title}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" MaxWidth="200"
+                                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <Button Classes="icon tabx" Command="{Binding CloseCommand}" Padding="2" ToolTip.Tip="{ui:T 'Закрыть вкладку'}">
+                            <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="11" Height="11" />
+                          </Button>
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <Panel Grid.Column="1" Width="240" Margin="12,0,0,0">
+                <TextBox Classes="search" Text="{Binding ClassicFilter}" Watermark="{ui:T 'Фильтр'}" Padding="34,6,12,6" />
+                <ui:Glyph Data="{x:Static ui:Icons.Search}" Width="15" Height="15" Foreground="{DynamicResource SubBrush}"
+                          HorizontalAlignment="Left" Margin="12,0,0,0" IsHitTestVisible="False" />
+              </Panel>
+            </Grid>
+
+            <!-- Заголовок таблицы -->
+            <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
+                    Margin="12,4,20,0" Padding="0,0,0,6">
+              <Grid ColumnDefinitions="44,2*,3*,2*,64,56">
+                <TextBlock Classes="head" Text="#" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="1" Classes="head" Text="{ui:T 'Исполнитель'}" Margin="12,0,12,0" />
+                <TextBlock Grid.Column="2" Classes="head" Text="{ui:T 'Название'}" />
+                <TextBlock Grid.Column="3" Classes="head colalbum" Text="{ui:T 'Альбом'}" />
+                <TextBlock Grid.Column="4" Classes="head" Text="{ui:T 'Время'}" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="5" Classes="head colfmt" Text="{ui:T 'Формат'}" Margin="12,0,0,0" />
+              </Grid>
+            </Border>
+
+            <Panel>
+              <TextBlock Text="{ui:T 'Здесь пока пусто'}" Foreground="{DynamicResource SubBrush}" HorizontalAlignment="Center"
+                         VerticalAlignment="Center" IsVisible="{Binding ClassicList.IsEmpty}" />
+              <Panel DataContext="{Binding ClassicList}">
+              <ListBox x:Name="Rows" Classes="plain ctable" ItemsSource="{Binding Rows}"
+                       SelectionMode="Multiple" Margin="4,2,8,4" x:DataType="vm:ClassicListViewModel">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:TrackRow">
+                    <Grid ColumnDefinitions="44,2*,3*,2*,64,56" Height="28" Margin="8,0,0,0" Background="Transparent">
+                      <TextBlock Classes="cell dim" Text="{Binding Number}" HorizontalAlignment="Right"
+                                 IsVisible="{Binding !Item.IsCurrent}" />
+                      <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="12" Height="12" HorizontalAlignment="Right" Margin="0,0,12,0"
+                                Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding Item.IsCurrent}" />
+                      <TextBlock Grid.Column="1" Classes="cell" Classes.playing="{Binding Item.IsCurrent}" Text="{Binding Item.Artist}"
+                                 Margin="12,0,12,0" />
+                      <TextBlock Grid.Column="2" Classes="cell" Classes.playing="{Binding Item.IsCurrent}" Text="{Binding Item.Title}" />
+                      <TextBlock Grid.Column="3" Classes="cell dim colalbum" Text="{Binding Item.AlbumName}" />
+                      <TextBlock Grid.Column="4" Classes="cell dim" Text="{Binding Item.DurationText}" HorizontalAlignment="Right"
+                                 />
+                      <TextBlock Grid.Column="5" Classes="cell dim colfmt" Text="{Binding Item.Extension}" Margin="12,0,0,0" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              </Panel>
+            </Panel>
+          </DockPanel>
+        </Panel>
+      </Border>
+    </Grid>
+
+    <!-- ===== Строка состояния ===== -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="8,0">
+      <TextBlock Text="{Binding ClassicList.Status}" FontSize="12" Foreground="{DynamicResource SubBrush}" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+      <TextBlock Grid.Column="1" FontSize="12" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"
+                 Text="{Binding Player.QueueTitle, StringFormat={}▶ {0}}" IsVisible="{Binding Player.HasTrack}" />
+    </Grid>
+  </Grid>
+</UserControl>

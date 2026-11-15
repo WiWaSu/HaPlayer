@@ -4,7 +4,11 @@ using System.Xml.Linq;
 
 namespace HaPlayer.Library;
 
-public sealed record ImportedPlaylist(string Name, List<string> Paths);
+/// <summary>
+/// Плейлист из чужого файла. Hints идут параллельно Paths: «исполнитель - название» из самого плейлиста,
+/// если он их хранит. По ним находим песню, когда файл с тех пор переехал.
+/// </summary>
+public sealed record ImportedPlaylist(string Name, List<string> Paths, List<string?>? Hints = null);
 
 /// <summary>
 /// Читает плейлисты других плееров. Файлы плейлистов только читаются.
@@ -42,8 +46,8 @@ public static class PlaylistImporter
                     if (string.IsNullOrEmpty(file)) continue;
                     var full = Path.IsPathRooted(file) ? file : Path.Combine(mlDir, file);
                     if (!File.Exists(full)) continue;
-                    var paths = ReadM3U(full);
-                    if (paths.Count > 0) result.Add(new ImportedPlaylist(title ?? Path.GetFileNameWithoutExtension(file), paths));
+                    var list = ReadM3UFull(full, title ?? Path.GetFileNameWithoutExtension(file));
+                    if (list.Paths.Count > 0) result.Add(title != null ? list with { Name = title } : list);
                 }
             }
             catch
@@ -57,8 +61,8 @@ public static class PlaylistImporter
         {
             var current = Path.Combine(root, name);
             if (!File.Exists(current)) continue;
-            var paths = ReadM3U(current);
-            if (paths.Count > 0) result.Add(new ImportedPlaylist(L.T("Winamp: текущий плейлист"), paths));
+            var list = ReadM3UFull(current, L.T("Winamp: текущий плейлист"));
+            if (list.Paths.Count > 0) result.Add(list with { Name = L.T("Winamp: текущий плейлист") });
             break;
         }
         return result;
@@ -72,11 +76,11 @@ public static class PlaylistImporter
         {
             return Path.GetExtension(file).ToLowerInvariant() switch
             {
-                ".m3u" or ".m3u8" => [new(name, ReadM3U(file))],
+                ".m3u" or ".m3u8" => [ReadM3UFull(file, name)],
                 ".pls" => [new(name, ReadPls(file))],
                 ".xspf" => [new(ReadXspfTitle(file) ?? name, ReadXspf(file))],
                 ".wpl" or ".zpl" => [new(ReadWplTitle(file) ?? name, ReadWpl(file))],
-                ".aimppl4" => [new(name, ReadAimp(file))],
+                ".aimppl4" => [ReadAimp(file, name)],
                 ".xml" => ReadITunes(file),
                 _ => [],
             };
@@ -89,15 +93,38 @@ public static class PlaylistImporter
 
     // ---------- Форматы ----------
 
-    private static List<string> ReadM3U(string file)
+    /// <summary>M3U с подсказками: #PLAYLIST даёт название, #EXTINF — «исполнитель - название» для следующей строки.</summary>
+    private static ImportedPlaylist ReadM3UFull(string file, string fallbackName)
     {
         var baseDir = Path.GetDirectoryName(file)!;
-        return ReadLines(file)
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0 && !l.StartsWith('#'))
-            .Select(l => Resolve(l, baseDir))
-            .OfType<string>()
-            .ToList();
+        var paths = new List<string>();
+        var hints = new List<string?>();
+        string? title = null;
+        string? hint = null;
+        foreach (var raw in ReadLines(file))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line.StartsWith("#PLAYLIST:", StringComparison.OrdinalIgnoreCase))
+            {
+                title = line[10..].Trim() is { Length: > 0 } t ? t : title;
+                continue;
+            }
+            if (line.StartsWith("#EXTINF:", StringComparison.OrdinalIgnoreCase))
+            {
+                var comma = line.IndexOf(',');
+                hint = comma >= 0 && line[(comma + 1)..].Trim() is { Length: > 0 } h ? h : null;
+                continue;
+            }
+            if (line.StartsWith('#')) continue;
+            if (Resolve(line, baseDir) is { } path)
+            {
+                paths.Add(path);
+                hints.Add(hint);
+            }
+            hint = null;
+        }
+        return new ImportedPlaylist(title ?? fallbackName, paths, hints);
     }
 
     private static List<string> ReadPls(string file)
@@ -139,25 +166,39 @@ public static class PlaylistImporter
     private static string? ReadWplTitle(string file) =>
         XDocument.Load(file).Descendants().FirstOrDefault(e => e.Name.LocalName == "title")?.Value.Trim() is { Length: > 0 } t ? t : null;
 
-    /// <summary>AIMP: после строки #-----CONTENT-----# идут «путь|название|…», строки групп начинаются с «-».</summary>
-    private static List<string> ReadAimp(string file)
+    /// <summary>
+    /// AIMP: в разделе SUMMARY строка Name= с названием, после #-----CONTENT-----# идут «путь|название|исполнитель|…»,
+    /// строки групп начинаются с «-».
+    /// </summary>
+    private static ImportedPlaylist ReadAimp(string file, string fallbackName)
     {
         var baseDir = Path.GetDirectoryName(file)!;
-        var result = new List<string>();
-        var inContent = false;
+        var paths = new List<string>();
+        var hints = new List<string?>();
+        string? title = null;
+        var section = "";
         foreach (var raw in ReadLines(file))
         {
             var line = raw.Trim();
             if (line.StartsWith("#-----", StringComparison.Ordinal))
             {
-                inContent = line.Contains("CONTENT", StringComparison.OrdinalIgnoreCase);
+                section = line.Trim('#', '-').ToUpperInvariant();
                 continue;
             }
-            if (!inContent || line.Length == 0 || line.StartsWith('-')) continue;
-            var path = line.Split('|')[0];
-            if (Resolve(path, baseDir) is { } p) result.Add(p);
+            if (section == "SUMMARY" && line.StartsWith("Name=", StringComparison.OrdinalIgnoreCase))
+            {
+                title = line[5..].Trim() is { Length: > 0 } t ? t : null;
+                continue;
+            }
+            if (section != "CONTENT" || line.Length == 0 || line.StartsWith('-')) continue;
+            var parts = line.Split('|');
+            if (Resolve(parts[0], baseDir) is not { } p) continue;
+            paths.Add(p);
+            var songTitle = parts.Length > 1 ? parts[1].Trim() : "";
+            var artist = parts.Length > 2 ? parts[2].Trim() : "";
+            hints.Add(songTitle.Length > 0 && artist.Length > 0 ? $"{artist} - {songTitle}" : songTitle.Length > 0 ? songTitle : null);
         }
-        return result;
+        return new ImportedPlaylist(title ?? fallbackName, paths, hints);
     }
 
     /// <summary>iTunes / Музыка: Library.xml в формате plist. Служебные списки (вся медиатека, подкасты) пропускаются.</summary>

@@ -11,7 +11,7 @@
     <AssemblyName>HaPlayer</AssemblyName>
     <RootNamespace>HaPlayer</RootNamespace>
     <Product>HaPlayer</Product>
-    <Version>1.9.0</Version>
+    <Version>2.0.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\haplayer.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>

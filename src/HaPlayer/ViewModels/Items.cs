@@ -145,7 +145,10 @@ public abstract partial class CollectionItem : ObservableObject
     /// <summary>Из этой коллекции сейчас играет очередь: название подсвечивается акцентом.</summary>
     [ObservableProperty] private bool _isNowPlaying;
 
-    public string? CoverSource => CustomImage ?? (Tracks.Count > 0 ? Tracks[0].Path
+    /// <summary>Плейлист внутри развёрнутой папки: в медиатеке строка с отступом.</summary>
+    [ObservableProperty] private bool _isNested;
+
+    public string? CoverSource => this is PlaylistFolderItem ? null : CustomImage ?? (Tracks.Count > 0 ? Tracks[0].Path
         : this is FolderItem f && f.AllTracks.Count > 0 ? f.AllTracks[0].Path : null);
 
     public IRelayCommand OpenCommand { get; }
@@ -181,9 +184,48 @@ public abstract partial class CollectionItem : ObservableObject
 
     private async Task LoadAsync(int width, Action<Bitmap> apply)
     {
+        if (this is PlaylistItem && CustomImage == null && await MosaicAsync(width) is { } mosaic)
+        {
+            apply(mosaic);
+            return;
+        }
         if (CoverSource is not { } source) return;
         var bmp = await _covers.GetAsync(source, width);
         if (bmp != null) apply(bmp);
+    }
+
+    /// <summary>
+    /// Обложка плейлиста без своего фото: четыре обложки разных альбомов плиткой 2×2.
+    /// Если альбомов с обложками меньше четырёх, null: тогда берётся обложка первого трека.
+    /// </summary>
+    private async Task<Bitmap?> MosaicAsync(int width)
+    {
+        var sources = Tracks
+            .GroupBy(t => t.Album?.Key ?? System.IO.Path.GetDirectoryName(t.Path) ?? "")
+            .Select(g => g.First().Path)
+            .Take(12)
+            .ToList();
+        if (sources.Count < 4) return null;
+        var half = Math.Max(1, width / 2);
+        var covers = new List<Bitmap>();
+        foreach (var s in sources)
+        {
+            if (await _covers.GetAsync(s, half) is { } b) covers.Add(b);
+            if (covers.Count == 4) break;
+        }
+        if (covers.Count < 4) return null;
+        var rtb = new RenderTargetBitmap(new Avalonia.PixelSize(half * 2, half * 2), new Avalonia.Vector(96, 96));
+        using (var ctx = rtb.CreateDrawingContext())
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                var b = covers[i];
+                var side = Math.Min(b.Size.Width, b.Size.Height);
+                var src = new Avalonia.Rect((b.Size.Width - side) / 2, (b.Size.Height - side) / 2, side, side);
+                ctx.DrawImage(b, src, new Avalonia.Rect(i % 2 * half, i / 2 * half, half, half));
+            }
+        }
+        return rtb;
     }
 }
 
@@ -215,6 +257,38 @@ public sealed class ArtistItem(
     public override string Name { get; } = name;
     public override List<TrackItem> Tracks { get; } = tracks;
     public override string Subtitle => L.T("Исполнитель");
+}
+
+/// <summary>Умный плейлист пользователя: треки набираются по его условиям при каждой пересборке медиатеки.</summary>
+public sealed class UserSmartItem(SmartPlaylistDef def, List<TrackItem> tracks,
+    CoverService covers, string? customImage, Action<CollectionItem> open, Action<CollectionItem> play)
+    : CollectionItem(covers, customImage, open, play)
+{
+    public SmartPlaylistDef Def { get; } = def;
+    public override string Kind => "usmart";
+    public override string Key => Def.Id;
+    public override string Name => Def.Name;
+    public override List<TrackItem> Tracks { get; } = tracks;
+    public override string Subtitle => L.F("Умный плейлист • {0}", Format.Tracks(Tracks.Count));
+    public override Avalonia.Media.Geometry? Badge => Tracks.Count == 0 ? Icons.Sparkles : null;
+}
+
+/// <summary>Папка плейлистов в медиатеке. Щелчок разворачивает её, «Играть» включает все её плейлисты подряд.</summary>
+public sealed class PlaylistFolderItem(
+    string id, string name, bool expanded, List<PlaylistItem> playlists,
+    CoverService covers, Action<CollectionItem> open, Action<CollectionItem> play)
+    : CollectionItem(covers, null, open, play)
+{
+    public override string Kind => "plfolder";
+    public override string Key { get; } = id;
+    public override string Name { get; } = name;
+    public bool IsExpanded { get; } = expanded;
+    public List<PlaylistItem> Playlists { get; } = playlists;
+    public override List<TrackItem> Tracks { get; } = playlists.SelectMany(p => p.Tracks).ToList();
+    public override string Subtitle => L.F("Папка • {0}",
+        L.Plural(Playlists.Count, "плейлист", "плейлиста", "плейлистов", "playlist", "playlists"));
+    public override Avalonia.Media.Geometry? Badge => Icons.Folder;
+    public Avalonia.Media.Geometry Chevron => IsExpanded ? Icons.ChevronDown : Icons.ChevronRight;
 }
 
 public sealed class PlaylistItem(
@@ -348,6 +422,17 @@ public sealed class UpNextItem(TrackItem track, bool queued, Action play, int in
     /// <summary>Поставлен вручную через «Играть следующим» или «В очередь».</summary>
     public bool Queued { get; } = queued;
     public IRelayCommand PlayCommand { get; } = new RelayCommand(play);
+}
+
+/// <summary>Прежняя очередь в правой панели: щелчок возвращает её с того же трека.</summary>
+public sealed class QueueHistoryItem(QueueSnapshot snapshot, Action<QueueSnapshot> restore)
+{
+    public string Title => snapshot.Title is { Length: > 0 } t ? t : L.T("Очередь");
+    public string Subtitle => snapshot.Track is { } track
+        ? $"{track.Title} • {Format.Tracks(snapshot.List.Count)}"
+        : Format.Tracks(snapshot.List.Count);
+    public TrackItem? Track => snapshot.Track;
+    public IRelayCommand RestoreCommand { get; } = new RelayCommand(() => restore(snapshot));
 }
 
 /// <summary>Сердечко у трека собирает плейлист «Любимые треки», новые сверху.</summary>

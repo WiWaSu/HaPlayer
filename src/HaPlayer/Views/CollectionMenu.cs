@@ -18,6 +18,9 @@ public static class CollectionMenu
 
     private static List<Control> Build(MainViewModel main, CollectionItem item)
     {
+        if (item is PlaylistFolderItem folder) return BuildFolder(main, folder);
+        if (item is UserSmartItem smart) return BuildSmart(main, smart);
+
         var items = new List<Control>
         {
             Item(L.T("Играть"), () => main.Play(item)),
@@ -26,8 +29,7 @@ public static class CollectionMenu
         if (!item.IsBuiltInPinned && item is not SmartItem)
             items.Add(Item(item.IsUserPinned ? L.T("Открепить в медиатеке") : L.T("Закрепить в медиатеке"), () => main.TogglePin(item)));
 
-        if (item.Tracks.Count > 0)
-            items.Add(Item(L.T("Сохранить как .m3u8…"), () => main.ExportM3uAsync(item)));
+        if (item.Tracks.Count > 0) items.Add(ExportMenu(main, item));
 
         var canAssign = item is not (AlbumItem or ArtistItem) || !main.Settings.StrictTags;
         if (item is not (AllTracksItem or SmartItem) && canAssign)
@@ -35,7 +37,40 @@ public static class CollectionMenu
             items.Add(new Separator());
             items.Add(Item(L.T("Добавить песни с диска…"), () => main.AddSongsFromDiskAsync(item)));
             if (!item.IsLikedCollection) items.Add(Item(L.T("Сменить обложку…"), () => main.ChangePhotoAsync(item)));
-            if (item is PlaylistItem p) items.Add(Item(L.T("Переименовать…"), () => main.RenamePlaylistAsync(p)));
+            if (item is PlaylistItem p)
+            {
+                items.Add(Item(L.T("Переименовать…"), () => main.RenamePlaylistAsync(p)));
+                var current = main.FolderOf(p);
+                var toFolder = new MenuItem { Header = L.T("В папку") };
+                toFolder.Items.Add(Item(L.T("Новая папка…"), () => main.CreatePlaylistFolderAsync(p)));
+                if (main.PlaylistFolderItems.Count > 0) toFolder.Items.Add(new Separator());
+                foreach (var f in main.PlaylistFolderItems)
+                {
+                    var target = f;
+                    toFolder.Items.Add(Item((f.Key == current?.Key ? "✓ " : "") + f.Name, () => main.MoveToFolder(p, target)));
+                }
+                if (current != null)
+                {
+                    toFolder.Items.Add(new Separator());
+                    toFolder.Items.Add(Item(L.T("Убрать из папки"), () => main.MoveToFolder(p, null)));
+                }
+                items.Add(toFolder);
+
+                var link = new MenuItem { Header = main.LinkedFile(p) != null ? "✓ " + L.T("Общий файл") : L.T("Общий файл") };
+                if (main.LinkedFile(p) is { } linked)
+                {
+                    link.Items.Add(new MenuItem { Header = linked, IsEnabled = false });
+                    link.Items.Add(new Separator());
+                    link.Items.Add(Item(L.T("Отвязать от файла"), () => main.Unlink(p)));
+                }
+                else
+                {
+                    link.Items.Add(Item(L.T("Связать с новым файлом…"), () => main.LinkToNewFileAsync(p)));
+                    link.Items.Add(Item(L.T("Связать с готовым файлом…"), () => main.LinkToExistingFileAsync(p)));
+                }
+                ToolTip.SetTip(link, L.T("Плейлист хранится ещё и в .m3u8, например в облачной или сетевой папке. Изменения идут в обе стороны."));
+                items.Add(link);
+            }
         }
 
         // Объединение, склеивание, разделение: только привязки HaPlayer, в строгом режиме их нет.
@@ -69,9 +104,25 @@ public static class CollectionMenu
         if (!main.Settings.StrictTags && item is AlbumItem or ArtistItem
             && item.Tracks.Any(t => t.Model.UserAlbumKey != null || t.Model.UserArtist != null))
             items.Add(Item(L.T("Вернуть как в тегах"), () => main.ResetAssignments(item.Tracks.ToList())));
+        if (item is ArtistItem ordered && main.HasAlbumOrder(ordered))
+            items.Add(Item(L.T("Порядок альбомов по году"), () => main.ResetAlbumOrder(ordered)));
         if (item is AlbumItem or ArtistItem)
             items.Add(Item(main.IsHiddenFromHome(item) ? L.T("Снова показывать на главной") : L.T("Не показывать на главной и в подборках"),
                 () => main.ToggleHiddenFromHome(item)));
+
+        if (item is not AllTracksItem)
+        {
+            var banner = new MenuItem { Header = L.T("Шапка") };
+            var current = main.Banner(item);
+            MenuItem Mode(string header, string mode, Action act) =>
+                new() { Header = (current == mode || (mode == "image" && current.StartsWith("image:")) ? "✓ " : "") + header, Command = new RelayCommand(act) };
+            banner.Items.Add(Mode(L.T("Цвет обложки"), "color", () => main.SetBanner(item, "color")));
+            banner.Items.Add(Mode(L.T("Анимированная абстракция"), "abstract", () => main.SetBanner(item, "abstract")));
+            banner.Items.Add(new MenuItem { Header = (current.StartsWith("image:") ? "✓ " : "") + L.T("Своя картинка…"),
+                Command = new AsyncRelayCommand(() => main.PickBannerAsync(item)) });
+            items.Add(new Separator());
+            items.Add(banner);
+        }
 
         var delete = item switch
         {
@@ -87,6 +138,47 @@ public static class CollectionMenu
             mi.Classes.Add("danger");
             items.Add(mi);
         }
+        return items;
+    }
+
+    private static MenuItem ExportMenu(MainViewModel main, CollectionItem item)
+    {
+        var export = new MenuItem { Header = L.T("Сохранить как .m3u8") };
+        export.Items.Add(Item(L.T("С полными путями…"), () => main.ExportM3uAsync(item)));
+        var relative = Item(L.T("С относительными путями…"), () => main.ExportM3uAsync(item, relative: true));
+        ToolTip.SetTip(relative, L.T("Пути от папки с плейлистом. Работает, если перенести плейлист вместе с музыкой на флешку или другой компьютер."));
+        export.Items.Add(relative);
+        return export;
+    }
+
+    private static List<Control> BuildSmart(MainViewModel main, UserSmartItem smart)
+    {
+        var items = new List<Control>();
+        if (smart.Tracks.Count > 0)
+        {
+            items.Add(Item(L.T("Играть"), () => main.Play(smart)));
+            items.Add(ExportMenu(main, smart));
+        }
+        items.Add(Item(smart.IsUserPinned ? L.T("Открепить в медиатеке") : L.T("Закрепить в медиатеке"), () => main.TogglePin(smart)));
+        items.Add(Item(L.T("Изменить условия…"), () => main.EditSmartPlaylistAsync(smart)));
+        items.Add(Item(L.T("Сменить обложку…"), () => main.ChangePhotoAsync(smart)));
+        items.Add(new Separator());
+        var mi = Item(L.T("Удалить умный плейлист"), () => main.DeleteSmartPlaylistAsync(smart));
+        mi.Classes.Add("danger");
+        items.Add(mi);
+        return items;
+    }
+
+    private static List<Control> BuildFolder(MainViewModel main, PlaylistFolderItem folder)
+    {
+        var items = new List<Control>();
+        if (folder.Tracks.Count > 0) items.Add(Item(L.T("Играть"), () => main.Play(folder)));
+        items.Add(Item(folder.IsUserPinned ? L.T("Открепить в медиатеке") : L.T("Закрепить в медиатеке"), () => main.TogglePin(folder)));
+        items.Add(Item(L.T("Переименовать…"), () => main.RenamePlaylistFolderAsync(folder)));
+        items.Add(new Separator());
+        var mi = Item(L.T("Удалить папку"), () => main.DeletePlaylistFolder(folder));
+        mi.Classes.Add("danger");
+        items.Add(mi);
         return items;
     }
 

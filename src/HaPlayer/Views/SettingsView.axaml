@@ -211,6 +211,16 @@
                 <ComboBox Grid.Column="1" ItemsSource="{Binding CrossfadeOptions}" SelectedIndex="{Binding CrossfadeIndex}"
                           MinWidth="160" VerticalAlignment="Center" />
               </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Пауза'}" Classes="label" ToolTip.Tip="{ui:T 'Музыка затихает при паузе и нарастает, когда снова включаете.'}" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding PauseFadeOptions}" SelectedIndex="{Binding PauseFadeIndex}"
+                          MinWidth="160" VerticalAlignment="Center" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Пауза при отключении наушников'}" Classes="label"
+                           ToolTip.Tip="{ui:T 'Выдернули наушники или отключился Bluetooth: музыка встаёт на паузу, а не играет в колонки. Наушники и колонки на одном выходе звуковой карты Windows не различает.'}" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding PauseOnDisconnect}" VerticalAlignment="Center" />
+              </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Text="{ui:T 'Буфер'}" Classes="label" ToolTip.Tip="{ui:T 'Если звук заикается, увеличьте.'}" />
                 <Slider Grid.Column="1" Width="220" Minimum="30" Maximum="500" TickFrequency="10" IsSnapToTickEnabled="True"
@@ -226,6 +236,14 @@
 
           <!-- ===== Оформление ===== -->
           <StackPanel IsVisible="{Binding IsLookCat}">
+            <StackPanel Classes="group">
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{ui:T 'Вид'}" Classes="label"
+                           ToolTip.Tip="{ui:T 'Современный: крупные обложки и подборки. Классический: плотная таблица, дерево медиатеки и панель со временем.'}" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding ViewModes}" SelectedIndex="{Binding ViewModeIndex}"
+                          MinWidth="200" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
             <StackPanel Classes="group">
               <TextBlock Text="{ui:T 'Палитра'}" Classes="title" />
               <ItemsControl ItemsSource="{Binding Palettes}">
@@ -280,6 +298,20 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <Grid Classes="row" ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Text="{ui:T 'Своя картинка'}" Classes="label" />
+                <Button Grid.Column="1" Classes="pill dark" Content="{ui:T 'Выбрать…'}" Command="{Binding PickBackgroundCommand}" />
+                <Button Grid.Column="2" Classes="pill dark" Content="{ui:T 'Убрать'}" Command="{Binding ClearBackgroundCommand}"
+                        Margin="8,0,0,0" IsVisible="{Binding HasBackgroundImage}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsVisible="{Binding HasBackgroundImage}">
+                <TextBlock Text="{ui:T 'Затемнение картинки'}" Classes="label" />
+                <Slider Grid.Column="1" Width="220" Minimum="0" Maximum="90" Value="{Binding BackgroundDim}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsVisible="{Binding HasBackgroundImage}">
+                <TextBlock Text="{ui:T 'Непрозрачность панелей'}" Classes="label" />
+                <Slider Grid.Column="1" Width="220" Minimum="40" Maximum="100" Value="{Binding PanelOpacity}" />
+              </Grid>
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="{ui:T 'Цвет шапки по обложке'}" Classes="label" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding HeaderFromCover}" VerticalAlignment="Center" />

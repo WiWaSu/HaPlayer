@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HaPlayer.ViewModels"
+        xmlns:ui="using:HaPlayer.Ui"
+        x:Class="HaPlayer.Views.TrackToastWindow"
+        x:DataType="vm:TrackItem"
+        Title="HaPlayer"
+        Width="360" Height="96" CanResize="False" Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        SystemDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent">
+  <!-- Плашка при смене трека, как в Winamp: появляется в углу экрана и сама исчезает -->
+  <Border x:Name="Card" Background="{DynamicResource MenuBrush}" CornerRadius="{DynamicResource R10}"
+          BorderBrush="{DynamicResource Ov1A}" BorderThickness="1" Padding="10" Opacity="0">
+    <Border.Transitions>
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.25" />
+      </Transitions>
+    </Border.Transitions>
+    <Grid ColumnDefinitions="Auto,*">
+      <ui:CoverView Width="74" Height="74" CornerRadius="{DynamicResource R6}" Source="{Binding Album.Thumb}" />
+      <StackPanel Grid.Column="1" Margin="12,0,4,0" VerticalAlignment="Center" Spacing="3">
+        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold" />
+        <TextBlock Text="{Binding Artist}" FontSize="13" Foreground="{DynamicResource SubBrush}" />
+        <TextBlock Text="{Binding AlbumName}" FontSize="12" Foreground="{DynamicResource MutedBrush}" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

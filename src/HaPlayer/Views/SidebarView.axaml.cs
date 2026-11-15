@@ -27,6 +27,33 @@ public partial class SidebarView : UserControl
                 else if (ctx is LikedItem) main.ToggleLike(tracks.Where(t => !t.IsLiked).ToList());
             });
 
+        // Двойной щелчок включает плейлист, альбом или исполнителя. Одиночный открывает страницу.
+        LibraryList.DoubleTapped += (_, e) =>
+        {
+            if ((e.Source as Control)?.DataContext is CollectionItem item && DataContext is MainViewModel main)
+            {
+                main.Play(item);
+                e.Handled = true;
+            }
+        };
+
+        // «Создать»: плейлист, умный плейлист или папка для плейлистов.
+        CreateButton.Click += (_, _) =>
+        {
+            if (DataContext is not MainViewModel main) return;
+            var menu = new ContextMenu
+            {
+                Placement = PlacementMode.BottomEdgeAlignedRight,
+                ItemsSource = new List<Control>
+                {
+                    new MenuItem { Header = HaPlayer.Ui.L.T("Плейлист"), Command = main.CreatePlaylistCommand },
+                    new MenuItem { Header = HaPlayer.Ui.L.T("Умный плейлист…"), Command = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => main.CreateSmartPlaylistAsync()) },
+                    new MenuItem { Header = HaPlayer.Ui.L.T("Папка"), Command = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => main.CreatePlaylistFolderAsync()) },
+                },
+            };
+            menu.Open(CreateButton);
+        };
+
         // Правый клик по альбому, плейлисту или исполнителю: то же меню, что «…» на странице.
         LibraryList.ContextRequested += (_, e) =>
         {

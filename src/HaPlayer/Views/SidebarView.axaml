@@ -10,8 +10,8 @@
       <!-- Заголовок и «Создать» -->
       <Grid DockPanel.Dock="Top" Classes="libhead" ColumnDefinitions="*,Auto,Auto" Margin="20,16,10,8">
         <TextBlock Text="{ui:T 'Моя медиатека'}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Classes="pill dark" Command="{Binding CreatePlaylistCommand}"
-                ToolTip.Tip="{ui:T 'Создать плейлист'}">
+        <Button x:Name="CreateButton" Grid.Column="1" Classes="pill dark"
+                ToolTip.Tip="{ui:T 'Создать плейлист или папку'}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <ui:Glyph Data="{x:Static ui:Icons.Add}" Width="16" Height="16" />
             <TextBlock Text="{ui:T 'Создать'}" />
@@ -28,28 +28,34 @@
       </Grid>
 
       <!-- Фильтры: включаются и выключаются повторным нажатием -->
-      <StackPanel DockPanel.Dock="Top" Classes="libchips" Orientation="Horizontal" Spacing="6" Margin="14,8,10,4">
-        <Button Classes="chip round" IsVisible="{Binding HasFilter}" Command="{Binding SelectTabCommand}"
+      <WrapPanel DockPanel.Dock="Top" Classes="libchips" Margin="14,8,10,4">
+        <Button Margin="0,0,6,6" Classes="chip round" IsVisible="{Binding HasFilter}" Command="{Binding SelectTabCommand}"
                 CommandParameter="All" ToolTip.Tip="{ui:T 'Сбросить фильтр'}">
           <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="14" Height="14" />
         </Button>
-        <Button Classes="chip" Classes.active="{Binding IsPlaylistsTab}" Content="{ui:T 'Плейлисты'}"
+        <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsPlaylistsTab}" Content="{ui:T 'Плейлисты'}"
                 Command="{Binding SelectTabCommand}" CommandParameter="Playlists" />
-        <Button Classes="chip" Classes.active="{Binding IsAlbumsTab}" Content="{ui:T 'Альбомы'}"
+        <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsAlbumsTab}" Content="{ui:T 'Альбомы'}"
                 Command="{Binding SelectTabCommand}" CommandParameter="Albums" />
-        <Button Classes="chip" Classes.active="{Binding IsArtistsTab}" Content="{ui:T 'Исполнители'}"
+        <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsArtistsTab}" Content="{ui:T 'Исполнители'}"
                 Command="{Binding SelectTabCommand}" CommandParameter="Artists" />
-      </StackPanel>
+        <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsFoldersTab}" Content="{ui:T 'Папки'}"
+                Command="{Binding SelectTabCommand}" CommandParameter="Folders" />
+      </WrapPanel>
 
       <!-- Поиск по медиатеке и сортировка -->
-      <Grid DockPanel.Dock="Top" Classes="libtools" ColumnDefinitions="Auto,*,Auto" Margin="12,6,12,4">
+      <Grid DockPanel.Dock="Top" Classes="libtools" ColumnDefinitions="Auto,*,Auto,Auto" Margin="12,6,12,4">
         <Button Classes="icon hoverbg" Command="{Binding ToggleLibrarySearchCommand}" ToolTip.Tip="{ui:T 'Искать в медиатеке'}">
           <ui:Glyph Data="{x:Static ui:Icons.Search}" Width="18" Height="18" />
         </Button>
         <TextBox x:Name="LibrarySearch" Grid.Column="1" Classes="inline" Margin="4,0,8,0"
                  Watermark="{ui:T 'Искать в медиатеке'}" Text="{Binding LibraryQuery}"
                  IsVisible="{Binding IsLibrarySearchOpen}" />
-        <Button Grid.Column="2" Classes="flat sort" Command="{Binding ToggleLibrarySortCommand}"
+        <Button Grid.Column="2" Classes="icon hoverbg" Command="{Binding GoYearsCommand}" ToolTip.Tip="{ui:T 'По годам'}"
+                Margin="0,0,4,0">
+          <ui:Glyph Data="{x:Static ui:Icons.Clock}" Width="17" Height="17" />
+        </Button>
+        <Button Grid.Column="3" Classes="flat sort" Command="{Binding ToggleLibrarySortCommand}"
                 ToolTip.Tip="{ui:T 'Сортировка'}">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="{Binding LibrarySortText}" FontSize="14" VerticalAlignment="Center" />
@@ -61,7 +67,7 @@
       <!-- Плейлисты, альбомы и исполнители одним списком -->
       <Panel>
         <Border IsVisible="{Binding HasNoAlbums}" VerticalAlignment="Top" Margin="12,8"
-                Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="20,16">
+                Background="{DynamicResource ElevatedBrush}" CornerRadius="{DynamicResource R8}" Padding="20,16">
           <StackPanel Spacing="8">
             <TextBlock Text="{ui:T 'Добавьте музыку'}" FontSize="16" FontWeight="Bold" />
             <TextBlock Text="{ui:T 'Выберите папку с треками или перетащите файлы в окно.'}" Classes="sub" TextWrapping="Wrap" />
@@ -70,11 +76,13 @@
         </Border>
 
         <ListBox x:Name="LibraryList" Classes="plain library" Margin="8,0,8,8" ItemsSource="{Binding LibraryItems}"
+                 AutoScrollToSelectedItem="False"
                  SelectedItem="{Binding SelectedLibraryItem, Mode=TwoWay}">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:CollectionItem">
-              <Grid ColumnDefinitions="48,*" ToolTip.Tip="{Binding Name}" ToolTip.Placement="Right">
-                <ui:CoverView Width="48" Height="48" Source="{Binding Thumb}" Badge="{Binding Badge}"
+              <Grid ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding Name}" ToolTip.Placement="Right"
+                    Classes.nested="{Binding IsNested}">
+                <ui:CoverView Classes="libcover" Source="{Binding Thumb}" Badge="{Binding Badge}"
                               CornerRadius="{Binding ListCornerRadius}" />
                 <StackPanel Grid.Column="1" Classes="libtext" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="3">
                   <TextBlock Classes="libname" Classes.playing="{Binding IsNowPlaying}" Text="{Binding Name}" />
@@ -83,6 +91,18 @@
                               Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsPinned}" />
                     <TextBlock Classes="libsub" Text="{Binding Subtitle}" />
                   </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Classes="libtext" VerticalAlignment="Center" Margin="4,0,4,0">
+                <ContentControl Content="{Binding}">
+                  <ContentControl.DataTemplates>
+                    <DataTemplate DataType="vm:PlaylistFolderItem">
+                      <ui:Glyph Data="{Binding Chevron}" Width="16" Height="16" Foreground="{DynamicResource SubBrush}" />
+                    </DataTemplate>
+                    <DataTemplate DataType="vm:CollectionItem">
+                      <Panel />
+                    </DataTemplate>
+                  </ContentControl.DataTemplates>
+                </ContentControl>
                 </StackPanel>
               </Grid>
             </DataTemplate>

@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HaPlayer.ViewModels"
+             xmlns:ui="using:HaPlayer.Ui"
+             x:Class="HaPlayer.Views.StatsView"
+             x:DataType="vm:StatsPageViewModel">
+  <!-- «Итоги»: статистика по истории прослушивания -->
+  <ScrollViewer>
+    <StackPanel Margin="24" Spacing="28">
+      <StackPanel Spacing="12">
+        <TextBlock Text="{ui:T 'Итоги'}" Classes="hero" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Classes="chip" Classes.active="{Binding IsWeek}" Content="{ui:T 'Неделя'}" Command="{Binding SelectPeriodCommand}" CommandParameter="0" />
+          <Button Classes="chip" Classes.active="{Binding IsMonth}" Content="{ui:T 'Месяц'}" Command="{Binding SelectPeriodCommand}" CommandParameter="1" />
+          <Button Classes="chip" Classes.active="{Binding IsYear}" Content="{ui:T 'Год'}" Command="{Binding SelectPeriodCommand}" CommandParameter="2" />
+          <Button Classes="chip" Classes.active="{Binding IsAll}" Content="{ui:T 'Всё время'}" Command="{Binding SelectPeriodCommand}" CommandParameter="3" />
+        </StackPanel>
+      </StackPanel>
+
+      <TextBlock Classes="sub" FontSize="15" IsVisible="{Binding HistoryOff}"
+                 Text="{ui:T 'История прослушивания выключена. Включается в «Настройки → Данные».'}" />
+      <TextBlock Classes="sub" FontSize="15" IsVisible="{Binding !HasData}"
+                 Text="{ui:T 'За этот период пока ничего не звучало.'}" />
+
+      <StackPanel Spacing="28" IsVisible="{Binding HasData}">
+        <!-- Крупные цифры -->
+        <WrapPanel>
+          <Border Classes="statcard">
+            <StackPanel Spacing="2">
+              <TextBlock Text="{Binding HoursText}" Classes="statbig" />
+              <TextBlock Text="{ui:T 'музыки'}" Classes="sub" />
+            </StackPanel>
+          </Border>
+          <Border Classes="statcard">
+            <StackPanel Spacing="2">
+              <TextBlock Text="{Binding PlaysText}" Classes="statbig" />
+              <TextBlock Text="{Binding TracksText}" Classes="sub" />
+            </StackPanel>
+          </Border>
+          <Border Classes="statcard">
+            <StackPanel Spacing="2">
+              <TextBlock Text="{Binding StreakText}" Classes="statbig" />
+              <TextBlock Classes="sub">
+                <Run Text="{ui:T 'подряд, рекорд'}" />
+                <Run Text="{Binding BestStreakText}" />
+              </TextBlock>
+            </StackPanel>
+          </Border>
+          <Border Classes="statcard">
+            <StackPanel Spacing="2">
+              <TextBlock Text="{Binding HourText}" Classes="statbig" />
+              <TextBlock Text="{ui:T 'любимое время'}" Classes="sub" />
+            </StackPanel>
+          </Border>
+        </WrapPanel>
+
+        <!-- Три рейтинга рядом -->
+        <UniformGrid Columns="3" Classes="statgrid">
+          <StackPanel Spacing="10" Margin="0,0,24,0">
+            <TextBlock Text="{ui:T 'Исполнители'}" Classes="h2" />
+            <ItemsControl ItemsSource="{Binding TopArtists}" ItemTemplate="{StaticResource StatsRowTemplate}" />
+          </StackPanel>
+          <StackPanel Spacing="10" Margin="0,0,24,0">
+            <TextBlock Text="{ui:T 'Треки'}" Classes="h2" />
+            <ItemsControl ItemsSource="{Binding TopTracks}" ItemTemplate="{StaticResource StatsRowTemplate}" />
+          </StackPanel>
+          <StackPanel Spacing="10">
+            <TextBlock Text="{ui:T 'Альбомы'}" Classes="h2" />
+            <ItemsControl ItemsSource="{Binding TopAlbums}" ItemTemplate="{StaticResource StatsRowTemplate}" />
+          </StackPanel>
+        </UniformGrid>
+      </StackPanel>
+
+      <!-- Часы по месяцам за год -->
+      <StackPanel Spacing="12" IsVisible="{Binding HasHistory}">
+        <TextBlock Text="{ui:T 'По месяцам'}" Classes="h2" />
+        <ItemsControl ItemsSource="{Binding Months}" Height="170">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:StatsBar">
+              <DockPanel Margin="4,0" ToolTip.Tip="{Binding Tip}" Background="Transparent">
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding Label}" Classes="sub" FontSize="12"
+                           HorizontalAlignment="Center" Margin="0,6,0,0" />
+                <Border Height="{Binding Pixels}" VerticalAlignment="Bottom" CornerRadius="{DynamicResource R4}"
+                        Background="{DynamicResource AccentBrush}" />
+              </DockPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

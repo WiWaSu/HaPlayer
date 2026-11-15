@@ -29,17 +29,7 @@ public partial class PlayerBarView : UserControl
         // Таймер сна: меню с вариантами по щелчку на луну.
         SleepButton.Click += (_, _) =>
         {
-            if (DataContext is not MainViewModel vm) return;
-            var items = new List<Control>();
-            MenuItem Item(string header, int minutes) => new() { Header = header, Command = new RelayCommand(() => vm.SetSleepTimer(minutes)) };
-            foreach (var m in new[] { 15, 30, 45, 60, 90 }) items.Add(Item(L.F("{0} минут", m), m));
-            items.Add(Item(L.T("После этого трека"), -1));
-            if (vm.IsSleepActive)
-            {
-                items.Add(new Separator());
-                items.Add(Item(L.T("Выключить таймер сна"), 0));
-            }
-            new ContextMenu { ItemsSource = items, Placement = PlacementMode.TopEdgeAlignedRight }.Open(SleepButton);
+            if (DataContext is MainViewModel vm) SleepMenu.Show(SleepButton, vm, PlacementMode.TopEdgeAlignedRight);
         };
     }
 }

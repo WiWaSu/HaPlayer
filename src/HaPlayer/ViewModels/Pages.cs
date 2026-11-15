@@ -22,12 +22,9 @@ public abstract class PageViewModel(MainViewModel main) : ObservableObject
 
 public static class Gradients
 {
-    public static Color Panel => HaPlayer.Ui.ThemeService.CurrentSurface.Panel;
+    public static Color Panel => HaPlayer.Ui.ThemeService.PanelColor;
 
-    public static Color Mix(Color a, Color b, double t) => Color.FromRgb(
-        (byte)(a.R + (b.R - a.R) * t),
-        (byte)(a.G + (b.G - a.G) * t),
-        (byte)(a.B + (b.B - a.B) * t));
+    public static Color Mix(Color a, Color b, double t) => HaPlayer.Ui.ThemeService.Mix(a, b, t);
 
     /// <summary>Шапка страницы: цвет обложки сверху, к низу темнеет.</summary>
     public static IBrush Header(Color c)
@@ -134,6 +131,12 @@ public sealed class TracksPageViewModel : PageViewModel
         SetFilterCommand = new RelayCommand<string>(f => main.ShowTracks(f == Filter ? "" : f ?? ""));
         RemoveMissingCommand = new AsyncRelayCommand(main.RemoveMissingAsync);
         PlayAllCommand = new RelayCommand(() => main.PlayOrToggle(list, 0, L.T("Все треки")));
+        _list = list;
+        main.Player.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(PlayerViewModel.IsPlaying) or nameof(PlayerViewModel.Queue))
+                OnPropertyChanged(nameof(PlayIcon));
+        };
         ShufflePlayCommand = new RelayCommand(() =>
         {
             if (list.Count == 0) return;
@@ -144,6 +147,10 @@ public sealed class TracksPageViewModel : PageViewModel
     }
 
     public bool HasMusic => Main.Library.Count > 0;
+
+    private readonly IReadOnlyList<TrackItem> _list;
+    public Avalonia.Media.Geometry PlayIcon =>
+        Main.Player.IsPlaying && ReferenceEquals(Main.Player.Queue, _list) ? HaPlayer.Ui.Icons.Pause : HaPlayer.Ui.Icons.Play;
 
     /// <summary>Быстрый фильтр: lossless, new (2020+), rated (4–5 звёзд), missing (нет файла). Пусто — все треки.</summary>
     public string Filter { get; }
@@ -322,11 +329,21 @@ public sealed partial class CollectionPageViewModel : PageViewModel
             AlbumItem a => (L.T("Альбом"), a.Artist, (a.Year > 0 ? $" • {a.Year}" : "") + $" • {stats}"),
             ArtistItem => (L.T("Исполнитель"), "", stats),
             SmartItem s => (L.T("Подборка"), s.Description, " • " + stats),
+            UserSmartItem u => (L.T("Умный плейлист"), SmartFilter.Describe(u.Def), " • " + stats),
             FolderItem f => (L.T("Папка"), "", " • " + L.F("{0} внутри", Format.Tracks(f.AllTracks.Count))),
             _ => (L.T("Плейлист"), "", stats),
         };
 
         PlayCommand = new RelayCommand(() => main.Play(item));
+        _playList = playList;
+        main.Player.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(PlayerViewModel.IsPlaying) or nameof(PlayerViewModel.Queue))
+            {
+                OnPropertyChanged(nameof(IsThisPlaying));
+                OnPropertyChanged(nameof(PlayIcon));
+            }
+        };
         ExportCommand = new AsyncRelayCommand(() => main.ExportM3uAsync(item));
         ShufflePlayCommand = new RelayCommand(() =>
         {
@@ -341,7 +358,11 @@ public sealed partial class CollectionPageViewModel : PageViewModel
             main.ToggleLike(AllLiked ? list : list.Where(t => !t.IsLiked).ToList());
             OnPropertyChanged(nameof(AllLiked));
         });
-        if (item is ArtistItem) ArtistTab = OwnAlbums.Count > 0 ? 0 : 1;
+        if (item is ArtistItem)
+        {
+            ArtistTab = OwnAlbums.Count > 0 ? 0 : 1;
+            FillTabAlbums();
+        }
         AddSongsCommand = new AsyncRelayCommand(() => main.AddSongsFromDiskAsync(item));
         ChangePhotoCommand = new AsyncRelayCommand(() => main.ChangePhotoAsync(item));
         RenameCommand = new AsyncRelayCommand(() => item is PlaylistItem p ? main.RenamePlaylistAsync(p) : Task.CompletedTask);
@@ -350,6 +371,20 @@ public sealed partial class CollectionPageViewModel : PageViewModel
         var start = item.IsLikedCollection ? LikedColor : Fallback;
         _headerBrush = Gradients.Header(start);
         _contentBrush = Gradients.Content(start);
+        _bannerColor = start;
+        var banner = main.Banner(item);
+        IsAbstractBanner = banner == "abstract";
+        if (banner.StartsWith("image:") && File.Exists(banner[6..]))
+        {
+            try
+            {
+                BannerImage = new Avalonia.Media.Imaging.Bitmap(banner[6..]);
+            }
+            catch
+            {
+                BannerImage = null;
+            }
+        }
         if (!item.IsLikedCollection && main.Settings.HeaderFromCover) _ = LoadColorAsync();
     }
 
@@ -360,11 +395,18 @@ public sealed partial class CollectionPageViewModel : PageViewModel
         {
             HeaderBrush = Gradients.Header(c);
             ContentBrush = Gradients.Content(c);
+            BannerColor = c;
         }
     }
 
     public CollectionItem Item { get; }
     public override PlaylistItem? Playlist => Item as PlaylistItem;
+
+    private readonly IReadOnlyList<TrackItem> _playList;
+
+    /// <summary>Сейчас играет именно эта страница: большая кнопка показывает паузу.</summary>
+    public bool IsThisPlaying => Main.Player.IsPlaying && ReferenceEquals(Main.Player.Queue, _playList);
+    public Avalonia.Media.Geometry PlayIcon => IsThisPlaying ? HaPlayer.Ui.Icons.Pause : HaPlayer.Ui.Icons.Play;
 
     /// <summary>Заметка к альбому. Пусто — заметки нет.</summary>
     public string Note { get; }
@@ -409,8 +451,8 @@ public sealed partial class CollectionPageViewModel : PageViewModel
         ArtistItem.MakeKey(a.Artist) == Item.Key
         || a.Tracks.Count(t => ArtistItem.MakeKey(t.Artist) == Item.Key) * 2 > a.Tracks.Count;
 
-    public List<AlbumItem> OwnAlbums => _own ??= ArtistAlbums.Where(IsOwn).ToList();
-    public List<AlbumItem> AppearsOn => _appears ??= ArtistAlbums.Where(a => !IsOwn(a)).ToList();
+    public List<AlbumItem> OwnAlbums => _own ??= Main.OrderAlbums(Item.Key, ArtistAlbums.Where(IsOwn).ToList());
+    public List<AlbumItem> AppearsOn => _appears ??= Main.OrderAlbums(Item.Key, ArtistAlbums.Where(a => !IsOwn(a)).ToList());
 
     /// <summary>Вкладка страницы исполнителя: 0 альбомы, 1 все треки, 2 «Появляется в».</summary>
     [ObservableProperty]
@@ -427,13 +469,43 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     public bool ShowOwnAlbums => IsArtist && ArtistTab == 0;
     public bool ShowAppearsOn => IsArtist && ArtistTab == 2;
     public bool ShowTrackList => HasTracks && (!IsArtist || ArtistTab == 1);
-    public List<AlbumItem> TabAlbums => ArtistTab == 2 ? AppearsOn : OwnAlbums;
+    /// <summary>Карточки открытой вкладки. Коллекция, а не список: при перетаскивании карточки раздвигаются на лету.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<AlbumItem> TabAlbums { get; } = [];
+
+    private void FillTabAlbums()
+    {
+        TabAlbums.Clear();
+        foreach (var a in ArtistTab == 2 ? AppearsOn : OwnAlbums) TabAlbums.Add(a);
+    }
 
     [RelayCommand]
     private void SelectArtistTab(string tab)
     {
         ArtistTab = int.Parse(tab);
-        OnPropertyChanged(nameof(TabAlbums));
+        FillTabAlbums();
+    }
+
+    /// <summary>Перетаскивание: карточка dragged встаёт на место карточки под курсором.</summary>
+    public void MoveAlbumLive(AlbumItem dragged, AlbumItem over)
+    {
+        var from = TabAlbums.IndexOf(dragged);
+        var to = TabAlbums.IndexOf(over);
+        if (from < 0 || to < 0 || from == to) return;
+        TabAlbums.Move(from, to);
+    }
+
+    /// <summary>Конец перетаскивания. Бросили — порядок запоминается, отменили — карточки возвращаются.</summary>
+    public void FinishAlbumDrag(bool dropped)
+    {
+        var current = ArtistTab == 2 ? AppearsOn : OwnAlbums;
+        if (!dropped || TabAlbums.SequenceEqual(current))
+        {
+            FillTabAlbums();
+            return;
+        }
+        // Обе вкладки хранятся одним списком: свои альбомы, потом «Появляется в».
+        var order = ArtistTab == 2 ? OwnAlbums.Concat(TabAlbums) : TabAlbums.Concat(AppearsOn);
+        Main.SaveAlbumOrder(Item.Key, order.ToList());
     }
 
     public bool AllLiked => Item.Tracks.Count > 0 && Item.Tracks.All(t => t.IsLiked);
@@ -446,7 +518,7 @@ public sealed partial class CollectionPageViewModel : PageViewModel
     /// <summary>«Добавить» у альбома и исполнителя меняет привязку, поэтому в строгом режиме скрыта.</summary>
     public bool CanAddSongs => Item switch
     {
-        SmartItem or FolderItem => false,
+        SmartItem or FolderItem or UserSmartItem => false,
         AlbumItem or ArtistItem => !Main.Settings.StrictTags,
         _ => true,
     };
@@ -475,4 +547,11 @@ public sealed partial class CollectionPageViewModel : PageViewModel
 
     [ObservableProperty] private IBrush _headerBrush;
     [ObservableProperty] private IBrush _contentBrush;
+
+    /// <summary>Основной цвет страницы (обложки) для анимированной шапки.</summary>
+    [ObservableProperty] private Color _bannerColor;
+
+    public bool IsAbstractBanner { get; }
+    public Avalonia.Media.Imaging.Bitmap? BannerImage { get; }
+    public bool IsImageBanner => BannerImage != null;
 }

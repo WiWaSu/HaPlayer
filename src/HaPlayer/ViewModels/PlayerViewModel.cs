@@ -8,6 +8,18 @@ using HaPlayer.Ui;
 
 namespace HaPlayer.ViewModels;
 
+/// <summary>Границы очереди: вся очередь или только альбом, исполнитель, папка играющего трека.</summary>
+public enum PlayScope
+{
+    All,
+    Album,
+    Artist,
+    Folder,
+}
+
+/// <summary>Сменённая очередь: список, его название, трек и место, на котором её сменили.</summary>
+public sealed record QueueSnapshot(IReadOnlyList<TrackItem> List, string? Title, TrackItem? Track, double Position);
+
 public sealed partial class PlayerViewModel : ObservableObject
 {
     private readonly IAudioEngine _engine;
@@ -35,6 +47,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         _engine.AdvancedToNext += (_, path) => Dispatcher.UIThread.Post(() => Advance(auto: true, enginePath: path));
         QueueChanged += PrepareNext;
         _engine.PlaybackFailed += (_, _) => Dispatcher.UIThread.Post(OnTrackFailed);
+        _engine.DeviceLost += (_, _) => Dispatcher.UIThread.Post(OnDeviceLost);
 
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, (_, _) => Tick());
     }
@@ -70,13 +83,22 @@ public sealed partial class PlayerViewModel : ObservableObject
     public bool HasTrack => CurrentTrack != null;
     public bool IsRepeatOn => Repeat != RepeatMode.Off;
     public bool IsRepeatOne => Repeat == RepeatMode.One;
-    public Geometry RepeatIcon => Repeat == RepeatMode.One ? Icons.RepeatOne : Icons.Repeat;
+    public Geometry RepeatIcon => Repeat switch
+    {
+        RepeatMode.One => Icons.RepeatOne,
+        RepeatMode.Folder => Icons.Folder,
+        _ => Icons.Repeat,
+    };
     public string RepeatTip => Repeat switch
     {
         RepeatMode.All => L.T("Повтор очереди (R)"),
         RepeatMode.One => L.T("Повтор трека (R)"),
+        RepeatMode.Folder => L.T("Повтор папки (R)"),
         _ => L.T("Повтор выключен (R)"),
     };
+
+    /// <summary>Очередь идёт по кругу: повтор всей очереди или папки.</summary>
+    private bool Loops => Repeat is RepeatMode.All or RepeatMode.Folder;
     public Geometry PlayIcon => IsPlaying ? Icons.Pause : Icons.Play;
     public Geometry VolumeIcon => IsMuted || Volume == 0 ? Icons.VolumeOff : Volume < 50 ? Icons.VolumeLow : Icons.Volume;
 
@@ -132,15 +154,87 @@ public sealed partial class PlayerViewModel : ObservableObject
     partial void OnVolumeChanged(double value)
     {
         IsMuted = false;
-        _engine.Volume = (float)(value / 100);
+        ApplyVolume();
         _settings.Volume = value;
         OnPropertyChanged(nameof(VolumeIcon));
     }
 
     partial void OnIsMutedChanged(bool value)
     {
-        _engine.Volume = value ? 0 : (float)(Volume / 100);
+        ApplyVolume();
         OnPropertyChanged(nameof(VolumeIcon));
+    }
+
+    // Громкость движка = ползунок × затухание таймера сна × затухание паузы.
+    private double _sleepFactor = 1;
+    private double _pauseFactor = 1;
+
+    private void ApplyVolume() =>
+        _engine.Volume = IsMuted ? 0 : (float)(Volume / 100 * Math.Clamp(_sleepFactor, 0, 1) * Math.Clamp(_pauseFactor, 0, 1));
+
+    // ---------- Плавная пауза ----------
+
+    private DispatcherTimer? _fadeTimer;
+    private double _fadeFrom;
+    private double _fadeTo;
+    private DateTime _fadeStart;
+    private double _fadeMs;
+
+    /// <summary>Затухание при паузе идёт: движок ещё звучит, но для интерфейса уже пауза.</summary>
+    private bool FadingOut => _fadeTimer?.IsEnabled == true && _fadeTo == 0;
+
+    private void StartFade(double to)
+    {
+        _fadeFrom = _pauseFactor;
+        _fadeTo = to;
+        _fadeStart = DateTime.UtcNow;
+        _fadeMs = Math.Max(1, _settings.PauseFadeMs * Math.Abs(to - _fadeFrom));
+        _fadeTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(15), DispatcherPriority.Render, (_, _) => FadeTick());
+        _fadeTimer.Start();
+        FadeTick();
+    }
+
+    private void FadeTick()
+    {
+        var k = Math.Clamp((DateTime.UtcNow - _fadeStart).TotalMilliseconds / _fadeMs, 0, 1);
+        _pauseFactor = _fadeFrom + (_fadeTo - _fadeFrom) * k;
+        ApplyVolume();
+        if (k < 1) return;
+        _fadeTimer?.Stop();
+        if (_fadeTo == 0)
+        {
+            _engine.Pause();
+            _pauseFactor = 1;
+            ApplyVolume();
+        }
+    }
+
+    /// <summary>Затухание прерывается: трек сменили, остановили или перемотали из другой программы.</summary>
+    private void CancelFade()
+    {
+        if (_fadeTimer?.IsEnabled != true) return;
+        _fadeTimer.Stop();
+        if (_fadeTo == 0) _engine.Pause();
+        _pauseFactor = 1;
+        ApplyVolume();
+    }
+
+    // ---------- Устройство пропало ----------
+
+    /// <summary>Музыка встала на паузу, потому что отключились наушники или Bluetooth.</summary>
+    public event Action? PausedByDevice;
+
+    private void OnDeviceLost()
+    {
+        var keepPlaying = IsPlaying && !_settings.PauseOnDisconnect;
+        var paused = IsPlaying && !keepPlaying;
+        CancelFade();
+        _engine.ReopenOutput(keepPlaying);
+        if (paused)
+        {
+            IsPlaying = false;
+            PausedByDevice?.Invoke();
+        }
     }
 
     partial void OnShuffleChanged(bool value)
@@ -154,7 +248,122 @@ public sealed partial class PlayerViewModel : ObservableObject
     partial void OnRepeatChanged(RepeatMode value)
     {
         _settings.Repeat = value;
+        // Повтор папки — это очередь из папки играющего трека, идущая по кругу.
+        if (!_scopeChanging)
+        {
+            if (value == RepeatMode.Folder && Scope != PlayScope.Folder && !SetScope(PlayScope.Folder)) Repeat = RepeatMode.All;
+            else if (value != RepeatMode.Folder && Scope == PlayScope.Folder) SetScope(PlayScope.All);
+        }
         PrepareNext();
+    }
+
+    // ---------- Границы очереди: только альбом, исполнитель или папка ----------
+
+    /// <summary>
+    /// Откуда брать треки для «только альбом / исполнитель / папка». Задаёт MainViewModel:
+    /// альбом и исполнитель берутся целиком из медиатеки, а не только из текущего списка.
+    /// </summary>
+    public Func<TrackItem, PlayScope, IReadOnlyList<TrackItem>>? ScopeSource { get; set; }
+
+    [ObservableProperty] private PlayScope _scope;
+
+    private IReadOnlyList<TrackItem>? _scopeBase;
+    private string? _scopeBaseTitle;
+    private bool _scopeChanging;
+
+    /// <summary>
+    /// Очередь не выходит за альбом, исполнителя или папку играющего трека, даже с перемешиванием и повтором.
+    /// All возвращает очередь, из которой включали, с того же трека.
+    /// </summary>
+    public bool SetScope(PlayScope scope)
+    {
+        if (CurrentTrack is not { } current) return false;
+        if (scope == Scope) return true;
+        var baseList = _scopeBase ?? _queue;
+        var baseTitle = _scopeBase != null ? _scopeBaseTitle : QueueTitle;
+        IReadOnlyList<TrackItem> list;
+        string? title;
+        if (scope == PlayScope.All)
+        {
+            list = baseList;
+            title = baseTitle;
+            _scopeBase = null;
+        }
+        else
+        {
+            list = ScopeSource?.Invoke(current, scope) ?? [];
+            if (!list.Contains(current)) return false;
+            _scopeBase = baseList;
+            _scopeBaseTitle = baseTitle;
+            title = scope switch
+            {
+                PlayScope.Album => current.AlbumName,
+                PlayScope.Artist => current.Artist,
+                _ => System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(current.Path)) ?? current.AlbumName,
+            };
+        }
+
+        _scopeChanging = true;
+        Scope = scope;
+        if (scope != PlayScope.Folder && Repeat == RepeatMode.Folder) Repeat = RepeatMode.All;
+        _scopeChanging = false;
+
+        _queue = list;
+        QueueTitle = title;
+        OnPropertyChanged(nameof(Queue));
+        var at = -1;
+        for (var i = 0; i < list.Count; i++)
+            if (ReferenceEquals(list[i], current)) { at = i; break; }
+        _index = Math.Max(0, at);
+        _playingFromUserQueue = false;
+        BuildOrder(_index);
+        return true;
+    }
+
+    /// <summary>Новая очередь: прежние границы к ней не относятся.</summary>
+    private void ResetScope()
+    {
+        _scopeBase = null;
+        if (Scope == PlayScope.All) return;
+        _scopeChanging = true;
+        Scope = PlayScope.All;
+        if (Repeat == RepeatMode.Folder) Repeat = RepeatMode.All;
+        _scopeChanging = false;
+    }
+
+    // ---------- Прежние очереди ----------
+
+    private readonly List<QueueSnapshot> _history = [];
+
+    /// <summary>Очереди этой сессии, которые сменились другими, новые первыми. Не больше десяти.</summary>
+    public IReadOnlyList<QueueSnapshot> History => _history;
+
+    public event Action? HistoryChanged;
+
+    private void RememberQueue(IReadOnlyList<TrackItem> next)
+    {
+        var list = _scopeBase ?? _queue;
+        if (list.Count == 0 || CurrentTrack == null || ReferenceEquals(list, next)) return;
+        _history.RemoveAll(h => ReferenceEquals(h.List, list));
+        _history.Insert(0, new QueueSnapshot(list, _scopeBase != null ? _scopeBaseTitle : QueueTitle, CurrentTrack, _engine.Position.TotalSeconds));
+        if (_history.Count > 10) _history.RemoveRange(10, _history.Count - 10);
+        HistoryChanged?.Invoke();
+    }
+
+    /// <summary>Вернуть прежнюю очередь: тот трек, на котором её сменили, с того же места.</summary>
+    public void RestoreQueue(QueueSnapshot snapshot)
+    {
+        var at = 0;
+        for (var i = 0; i < snapshot.List.Count; i++)
+            if (ReferenceEquals(snapshot.List[i], snapshot.Track)) { at = i; break; }
+        _history.Remove(snapshot);
+        PlayList(snapshot.List, at, snapshot.Title);
+        if (CurrentTrack == snapshot.Track && snapshot.Position > 3 && snapshot.Position < Duration - 3)
+        {
+            _engine.Position = TimeSpan.FromSeconds(snapshot.Position);
+            SetPositionSilently(snapshot.Position);
+        }
+        HistoryChanged?.Invoke();
     }
 
     /// <summary>Таймер сна остановил музыку «после этого трека».</summary>
@@ -174,30 +383,56 @@ public sealed partial class PlayerViewModel : ObservableObject
     /// <summary>Таймер сна «после этого трека»: когда трек кончится, музыка остановится.</summary>
     public bool StopAfterCurrent
     {
-        get => _stopAfterCurrent;
+        get => _stopAfter == 1;
+        set => StopAfterTracks = value ? 1 : 0;
+    }
+
+    /// <summary>Множитель громкости для плавного затухания таймера сна: 1 — как обычно, 0 — тишина.</summary>
+    public void SetFade(double factor)
+    {
+        _sleepFactor = factor;
+        ApplyVolume();
+    }
+
+    /// <summary>Сколько треков ещё доиграть до остановки, считая текущий. 0 — не останавливаться.</summary>
+    public int StopAfterTracks
+    {
+        get => _stopAfter;
         set
         {
-            _stopAfterCurrent = value;
+            _stopAfter = Math.Max(0, value);
+            PrepareNext();
+            StopCounterChanged?.Invoke();
+        }
+    }
+
+    private int _stopAfter;
+
+    /// <summary>Счётчик «остановить через N треков» изменился.</summary>
+    public event Action? StopCounterChanged;
+
+    /// <summary>Ручной режим: трек доигрывает, следующий открывается на паузе.</summary>
+    public bool ManualAdvance
+    {
+        get => _settings.ManualAdvance;
+        set
+        {
+            _settings.ManualAdvance = value;
             PrepareNext();
         }
     }
 
-    private bool _stopAfterCurrent;
-
-    /// <summary>Множитель громкости для плавного затухания таймера сна: 1 — как обычно, 0 — тишина.</summary>
-    public void SetFade(double factor) =>
-        _engine.Volume = IsMuted ? 0 : (float)(Volume / 100 * Math.Clamp(factor, 0, 1));
-
     /// <summary>Что заиграет после текущего трека, если ничего не трогать.</summary>
     private TrackItem? PeekNext()
     {
-        if (CurrentTrack == null || _stopAfterCurrent) return null;
+        // Останавливаемся или ждём нажатия: заранее ничего не открываем, иначе движок перейдёт сам.
+        if (CurrentTrack == null || _stopAfter == 1 || ManualAdvance) return null;
         if (Repeat == RepeatMode.One) return CurrentTrack;
         if (_userQueue.Count > 0) return _userQueue[0];
         var next = _pos + 1;
         if (next >= 0 && next < _order.Count) return _queue[_order[next]];
         // По кругу без перемешивания начинаем сначала. С перемешиванием новый круг случайный, его заранее не знаем.
-        if (Repeat == RepeatMode.All && !Shuffle && _order.Count > 0) return _queue[_order[0]];
+        if (Loops && !Shuffle && _order.Count > 0) return _queue[_order[0]];
         return null;
     }
 
@@ -206,6 +441,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         if (CurrentTrack == null) return;
         var next = PeekNext();
+        if (next is { IsMissing: true } && ResolveMissing?.Invoke(next) is { } twin) next = twin;
         _engine.SetNext(next is { IsMissing: false } ? next.Path : null);
     }
 
@@ -257,6 +493,8 @@ public sealed partial class PlayerViewModel : ObservableObject
     public void PlayList(IReadOnlyList<TrackItem> list, int index, string? title = null)
     {
         if (index < 0 || index >= list.Count) return;
+        RememberQueue(list);
+        ResetScope();
         _queue = list;
         QueueTitle = title ?? QueueTitle;
         OnPropertyChanged(nameof(Queue));
@@ -296,6 +534,7 @@ public sealed partial class PlayerViewModel : ObservableObject
     public void Restore(IReadOnlyList<TrackItem> list, int index, double position, string? title)
     {
         if (index < 0 || index >= list.Count) return;
+        ResetScope();
         _queue = list;
         QueueTitle = title;
         OnPropertyChanged(nameof(Queue));
@@ -315,6 +554,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         if (position > 0 && position < Duration - 1) _engine.Position = TimeSpan.FromSeconds(position);
         SetPositionSilently(_engine.Position.TotalSeconds);
         IsPlaying = false;
+        if (Repeat == RepeatMode.Folder && !SetScope(PlayScope.Folder)) Repeat = RepeatMode.All;
     }
 
     /// <summary>Позиция для сохранения сессии.</summary>
@@ -333,8 +573,13 @@ public sealed partial class PlayerViewModel : ObservableObject
     /// Делает трек текущим. enginePath — файл, на который движок уже перешёл сам:
     /// если это тот же трек, открывать его заново не нужно, он уже звучит.
     /// </summary>
+    /// <summary>Для пропавшего файла возвращает живую копию той же песни или null. Задаёт MainViewModel.</summary>
+    public Func<TrackItem, TrackItem?>? ResolveMissing { get; set; }
+
     private void LoadTrack(TrackItem track, string? enginePath = null)
     {
+        if (enginePath == null && ResolveMissing?.Invoke(track) is { } twin) track = twin;
+        CancelFade();
         _listenedReported = false;
         CurrentTrack = track;
         if (enginePath != null && string.Equals(track.Path, enginePath, StringComparison.OrdinalIgnoreCase))
@@ -356,9 +601,17 @@ public sealed partial class PlayerViewModel : ObservableObject
             return;
         }
         Duration = _engine.Duration.TotalSeconds > 0 ? _engine.Duration.TotalSeconds : track.Model.DurationSeconds;
+        if (_openPaused)
+        {
+            IsPlaying = false;
+            return;
+        }
         _engine.Play();
         IsPlaying = true;
     }
+
+    /// <summary>Ручной режим: следующий трек открывается, но не играет.</summary>
+    private bool _openPaused;
 
     private void OnTrackFailed()
     {
@@ -372,14 +625,28 @@ public sealed partial class PlayerViewModel : ObservableObject
     public void PlayPause()
     {
         if (CurrentTrack == null) return;
-        if (_engine.IsPlaying)
+        var fade = _settings.PauseFadeMs > 0;
+        if (IsPlaying && _engine.IsPlaying)
         {
-            _engine.Pause();
             IsPlaying = false;
+            if (fade) StartFade(0);
+            else _engine.Pause();
         }
         else
         {
-            _engine.Play();
+            if (FadingOut)
+            {
+                // Нажали «играть», пока музыка затихала: нарастает обратно с того же уровня.
+                StartFade(1);
+            }
+            else if (fade)
+            {
+                _pauseFactor = 0;
+                ApplyVolume();
+                _engine.Play();
+                StartFade(1);
+            }
+            else _engine.Play();
             IsPlaying = true;
             _errorStreak = 0;
         }
@@ -387,17 +654,18 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     public void Play()
     {
-        if (CurrentTrack != null && !_engine.IsPlaying) PlayPause();
+        if (CurrentTrack != null && !IsPlaying) PlayPause();
     }
 
     public void Pause()
     {
-        if (_engine.IsPlaying) PlayPause();
+        if (IsPlaying) PlayPause();
     }
 
     [RelayCommand]
     public void Stop()
     {
+        CancelFade();
         _engine.Stop();
         IsPlaying = false;
         SetPositionSilently(0);
@@ -408,9 +676,29 @@ public sealed partial class PlayerViewModel : ObservableObject
 
     private void Advance(bool auto, string? enginePath = null)
     {
-        if (auto && _stopAfterCurrent)
+        // Ручной режим: трек кончился сам — следующий открываем на паузе, он заиграет по нажатию.
+        if (auto && ManualAdvance && !_openPaused && Repeat != RepeatMode.One)
         {
-            _stopAfterCurrent = false;
+            _openPaused = true;
+            try
+            {
+                Advance(auto: true, enginePath);
+            }
+            finally
+            {
+                _openPaused = false;
+            }
+            return;
+        }
+        if (auto && _stopAfter > 1)
+        {
+            _stopAfter--;
+            StopCounterChanged?.Invoke();
+        }
+        else if (auto && _stopAfter == 1)
+        {
+            _stopAfter = 0;
+            StopCounterChanged?.Invoke();
             Stop();
             StoppedBySleepTimer?.Invoke();
             return;
@@ -450,7 +738,7 @@ public sealed partial class PlayerViewModel : ObservableObject
         var next = _pos + 1;
         if (next >= _order.Count)
         {
-            if (Repeat != RepeatMode.All)
+            if (!Loops)
             {
                 if (auto) Stop();
                 return;
@@ -478,7 +766,7 @@ public sealed partial class PlayerViewModel : ObservableObject
             LoadAt(_pos);
             return;
         }
-        if (_pos <= 0 && Repeat != RepeatMode.All)
+        if (_pos <= 0 && !Loops)
         {
             _engine.Position = TimeSpan.Zero;
             SetPositionSilently(0);
@@ -546,6 +834,57 @@ public sealed partial class PlayerViewModel : ObservableObject
         SetUpcoming(up);
     }
 
+    /// <summary>
+    /// Треки убраны из медиатеки: они пропадают из очереди и из контекста.
+    /// Если среди них текущий, включается следующий, а если играть больше нечего, музыка останавливается.
+    /// </summary>
+    public void Forget(IReadOnlySet<TrackItem> gone)
+    {
+        if (gone.Count == 0) return;
+        _userQueue.RemoveAll(gone.Contains);
+        var currentGone = CurrentTrack != null && gone.Contains(CurrentTrack);
+
+        if (_queue.Any(gone.Contains))
+        {
+            var map = new int[_queue.Count];
+            var kept = new List<TrackItem>(_queue.Count);
+            for (var i = 0; i < _queue.Count; i++)
+            {
+                if (gone.Contains(_queue[i])) { map[i] = -1; continue; }
+                map[i] = kept.Count;
+                kept.Add(_queue[i]);
+            }
+            // Сколько уцелевших записей порядка стоит до текущей: с этого места и продолжаем.
+            var before = _order.Take(Math.Max(0, _pos)).Count(i => map[i] >= 0);
+            var currentKept = _pos >= 0 && _pos < _order.Count && map[_order[_pos]] >= 0;
+            _order = _order.Where(i => map[i] >= 0).Select(i => map[i]).ToList();
+            _queue = kept;
+            OnPropertyChanged(nameof(Queue));
+            _pos = currentKept ? before : before - 1;
+            _index = _pos >= 0 && _pos < _order.Count ? _order[_pos] : -1;
+        }
+
+        if (currentGone)
+        {
+            var wasPlaying = IsPlaying;
+            if (_userQueue.Count > 0 || _pos + 1 < _order.Count)
+            {
+                Advance(auto: false);
+                if (!wasPlaying) Pause();
+            }
+            else
+            {
+                _engine.Close();
+                IsPlaying = false;
+                CurrentTrack = null;
+                Duration = 0;
+                SetPositionSilently(0);
+            }
+        }
+        QueueChanged?.Invoke();
+        PrepareNext();
+    }
+
     /// <summary>Что прозвучит дальше: сначала поставленное в очередь, потом продолжение контекста.</summary>
     public List<(TrackItem Track, bool Queued, Action Play)> GetUpNext(int max)
     {
@@ -586,8 +925,13 @@ public sealed partial class PlayerViewModel : ObservableObject
     {
         RepeatMode.Off => RepeatMode.All,
         RepeatMode.All => RepeatMode.One,
+        RepeatMode.One when CanRepeatFolder => RepeatMode.Folder,
         _ => RepeatMode.Off,
     };
+
+    /// <summary>Повтор папки предлагаем, только если в очереди треки из нескольких папок: иначе он не отличается от повтора очереди.</summary>
+    private bool CanRepeatFolder => CurrentTrack != null &&
+        (_scopeBase ?? _queue).Select(t => System.IO.Path.GetDirectoryName(t.Path)).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any();
 
     [RelayCommand]
     public void ToggleMute() => IsMuted = !IsMuted;

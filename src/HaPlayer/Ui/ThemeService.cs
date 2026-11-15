@@ -56,6 +56,12 @@ public static class ThemeService
 
     public static CornerRadius Radius(double value) => new(value * RadiusFactor);
 
+    /// <summary>Непрозрачность панелей: 1 обычно, меньше — когда на фоне своя картинка.</summary>
+    public static double PanelAlpha { get; set; } = 1;
+
+    /// <summary>Цвет панелей с учётом прозрачности. Им заканчиваются градиенты шапок.</summary>
+    public static Color PanelColor => WithAlpha(CurrentSurface.Panel, (byte)Math.Round(255 * Math.Clamp(PanelAlpha, 0, 1)));
+
     private static void ApplyRadii(Avalonia.Controls.IResourceDictionary r)
     {
         foreach (var v in new[] { 3, 4, 5, 6, 8, 10, 12 }) r["R" + v] = Radius(v);
@@ -142,7 +148,7 @@ public static class ThemeService
 
         var s = CurrentSurface;
         r["BgBrush"] = new SolidColorBrush(s.Background);
-        r["PanelBrush"] = new SolidColorBrush(s.Panel);
+        r["PanelBrush"] = new SolidColorBrush(PanelColor);
         ApplySurfaceColors(r, s.IsLight, p.Accent);
         ApplyRadii(r);
 
@@ -247,7 +253,8 @@ public static class ThemeService
     /// <summary>Приглушённый акцент для шапок страниц без обложки.</summary>
     public static Color HeaderTint => IsLight ? Mix(Current.Accent, Colors.White, 0.7) : Mix(Current.Accent, Colors.Black, 0.6);
 
-    public static Color Mix(Color a, Color b, double t) => Color.FromRgb(
+    public static Color Mix(Color a, Color b, double t) => Color.FromArgb(
+        (byte)(a.A + (b.A - a.A) * t),
         (byte)(a.R + (b.R - a.R) * t),
         (byte)(a.G + (b.G - a.G) * t),
         (byte)(a.B + (b.B - a.B) * t));

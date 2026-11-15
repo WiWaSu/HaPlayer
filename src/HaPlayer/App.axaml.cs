@@ -32,6 +32,7 @@ public partial class App : Application
 
             // Тема и форматы применяются до создания окна, чтобы оно сразу открылось в нужных цветах.
             Ui.ThemeService.RadiusFactor = settings.UiRadius;
+            Ui.ThemeService.PanelAlpha = File.Exists(settings.BackgroundImage) ? settings.PanelOpacity : 1;
             Ui.ThemeService.Apply(settings.Palette, settings.Surface, settings.CustomAccent);
             Ui.ThemeService.ApplyFont(settings.UiFont);
             AudioFormats.SetDisabled(settings.DisabledFormats);

@@ -63,6 +63,18 @@
                 </Button>
               </StackPanel>
             </Grid>
+            <!-- Границы очереди: дальше играет только альбом, исполнитель или папка этого трека -->
+            <WrapPanel IsVisible="{Binding Player.HasTrack}"
+                       ToolTip.Tip="{ui:T 'Очередь не выйдет за эти границы, даже с перемешиванием и повтором'}">
+              <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsScopeAll}" Content="{ui:T 'Вся очередь'}"
+                      Command="{Binding SetScopeCommand}" CommandParameter="All" />
+              <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsScopeAlbum}" Content="{ui:T 'Альбом'}"
+                      Command="{Binding SetScopeCommand}" CommandParameter="Album" />
+              <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsScopeArtist}" Content="{ui:T 'Исполнитель'}"
+                      Command="{Binding SetScopeCommand}" CommandParameter="Artist" />
+              <Button Margin="0,0,6,6" Classes="chip" Classes.active="{Binding IsScopeFolder}" Content="{ui:T 'Папка'}"
+                      Command="{Binding SetScopeCommand}" CommandParameter="Folder" />
+            </WrapPanel>
             <ItemsControl x:Name="UpNextList" ItemsSource="{Binding UpNextShort}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:UpNextItem">
@@ -76,6 +88,29 @@
                       <Button Grid.Column="2" Classes="icon rowx" Command="{Binding RemoveCommand}" ToolTip.Tip="{ui:T 'Убрать из очереди'}">
                         <ui:Glyph Data="{x:Static ui:Icons.Close}" Width="14" Height="14" />
                       </Button>
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- Прежние очереди этой сессии -->
+        <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="{DynamicResource R8}" Padding="12,14"
+                IsVisible="{Binding HasQueueHistory}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="{ui:T 'Прежние очереди'}" FontSize="16" FontWeight="Bold" />
+            <ItemsControl ItemsSource="{Binding QueueHistory}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:QueueHistoryItem">
+                  <Button Classes="row upnext" Command="{Binding RestoreCommand}" ToolTip.Tip="{ui:T 'Вернуть эту очередь'}">
+                    <Grid ColumnDefinitions="44,*">
+                      <ui:CoverView Width="44" Height="44" Source="{Binding Track.Album.Thumb}" />
+                      <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Subtitle}" Classes="sub" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
                     </Grid>
                   </Button>
                 </DataTemplate>

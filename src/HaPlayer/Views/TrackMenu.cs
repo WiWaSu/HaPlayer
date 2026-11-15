@@ -34,6 +34,18 @@ public static class TrackMenu
             menu.Open(list);
             e.Handled = true;
         };
+
+        // Delete: в плейлисте убирает из плейлиста, в остальных местах из медиатеки (с подтверждением).
+        list.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Delete || e.KeyModifiers != KeyModifiers.None) return;
+            if (list.DataContext is not PageViewModel page) return;
+            var tracks = list.SelectedItems?.OfType<TrackRow>().OrderBy(r => r.Index).Select(r => r.Item).ToList() ?? [];
+            if (tracks.Count == 0) return;
+            e.Handled = true;
+            if (page.Playlist is { } playlist) page.Main.RemoveFromPlaylist(playlist, tracks);
+            else _ = page.Main.RemoveTracksAsync(tracks, deleteFile: false);
+        };
     }
 
     private static List<Control> Build(PageViewModel page, TrackRow clicked, List<TrackItem> tracks)
@@ -47,6 +59,19 @@ public static class TrackMenu
         items.Add(Item(L.T("В очередь"), () => main.Player.AddToQueue(tracks)));
         items.Add(new Separator());
 
+        if (main.Settings.ShowRatings)
+        {
+            var rate = new MenuItem { Header = L.T("Оценка") };
+            for (var s = 5; s >= 1; s--)
+            {
+                var stars = s;
+                rate.Items.Add(Item(new string('★', stars) + new string('☆', 5 - stars), () => main.SetRating(tracks, stars)));
+            }
+            rate.Items.Add(new Separator());
+            rate.Items.Add(Item(L.T("Без оценки"), () => main.SetRating(tracks, 0)));
+            items.Add(rate);
+        }
+
         var allLiked = tracks.All(t => t.IsLiked);
         items.Add(Item(allLiked ? L.T("Убрать из любимых") : L.T("Добавить в любимые"), () => main.ToggleLike(tracks)));
 
@@ -57,6 +82,10 @@ public static class TrackMenu
         foreach (var p in main.Playlists.Where(p => p != page.Playlist))
             toPlaylist.Items.Add(Item(p.Name, () => main.AddToPlaylist(p, tracks)));
         items.Add(toPlaylist);
+
+        if (page.Playlist is { } pinTarget)
+            items.Add(Item(tracks.All(t => main.IsPinnedIn(pinTarget, t)) ? L.T("Открепить") : L.T("Закрепить вверху"),
+                () => main.TogglePinInPlaylist(pinTarget, tracks)));
 
         if (page.Playlist is { } current)
             items.Add(Item(single ? L.T("Убрать из плейлиста") : L.F("Убрать из плейлиста ({0})", tracks.Count),
@@ -93,7 +122,17 @@ public static class TrackMenu
             items.Add(Item(L.T("Перейти к исполнителю"), () => main.OpenArtist(t.Artist)));
             items.Add(Item(L.T("Показать в проводнике"), () => ShowInExplorer(t.Path)));
             items.Add(Item(L.T("Сведения о файле"), () => main.ShowFileInfoAsync(t)));
+            items.Add(Item(L.T("Заметка…"), () => main.EditNoteAsync("track", t.Path, t.Title)));
+            items.Insert(3, Item(L.T("Радио по треку"), () => main.PlayRadio(t)));
         }
+
+        items.Add(Item(tracks.All(t => t.IsBlacklisted) ? L.T("Снова включать в подборки и перемешивание")
+            : L.T("Не включать в подборки и перемешивание"), () => main.ToggleBlacklist(tracks)));
+
+        items.Add(new Separator());
+        items.Add(Item(L.T("Убрать из медиатеки"), () => main.RemoveTracksAsync(tracks, deleteFile: false)));
+        items.Add(Item(single ? L.T("Удалить файл") : L.F("Удалить файлы ({0})", tracks.Count),
+            () => main.RemoveTracksAsync(tracks, deleteFile: true)));
 
         return items;
     }

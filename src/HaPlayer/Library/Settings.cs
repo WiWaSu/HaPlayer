@@ -8,9 +8,38 @@ public enum RepeatMode
     Off,
     All,
     One,
+
+    /// <summary>По кругу только папку играющего трека.</summary>
+    Folder,
 }
 
 /// <summary>Настройки в %APPDATA%\HaPlayer\settings.json.</summary>
+/// <summary>Папка плейлистов: только группировка в медиатеке, сами плейлисты от неё не зависят.</summary>
+public sealed class PlaylistFolder
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool Expanded { get; set; } = true;
+    public List<long> Playlists { get; set; } = [];
+}
+
+/// <summary>Условие умного плейлиста: поле, сравнение и значение. Поля и сравнения описаны в SmartFilter.</summary>
+public sealed class SmartRule
+{
+    public string Field { get; set; } = "genre";
+    public string Op { get; set; } = "contains";
+    public string Value { get; set; } = "";
+}
+
+/// <summary>Умный плейлист: треки подбираются сами по условиям, через И (все) или ИЛИ (любое).</summary>
+public sealed class SmartPlaylistDef
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool MatchAll { get; set; } = true;
+    public List<SmartRule> Rules { get; set; } = [];
+}
+
 public sealed class Settings
 {
     public double Volume { get; set; } = 80;
@@ -146,6 +175,50 @@ public sealed class Settings
     /// <summary>Угол экрана для плашки: bottomright, topright, bottomleft, topleft.</summary>
     public string TrackToastCorner { get; set; } = "bottomright";
 
+    /// <summary>Своя картинка на фоне окна (копия в папке данных). null — обычный фон.</summary>
+    public string? BackgroundImage { get; set; }
+
+    /// <summary>Затемнение картинки фона, 0..0.9.</summary>
+    public double BackgroundDim { get; set; } = 0.45;
+
+    /// <summary>Непрозрачность панелей поверх картинки фона, 0.4..1.</summary>
+    public double PanelOpacity { get; set; } = 0.8;
+
+    /// <summary>Шапки страниц: «kind:key» → color, abstract или image:путь.</summary>
+    public Dictionary<string, string> Banners { get; set; } = [];
+
+    /// <summary>Порядок альбомов на странице исполнителя, если его поменяли перетаскиванием: ключ исполнителя → ключи альбомов.</summary>
+    public Dictionary<string, List<string>> AlbumOrder { get; set; } = [];
+
+    /// <summary>Папки плейлистов в медиатеке слева.</summary>
+    public List<PlaylistFolder> PlaylistFolders { get; set; } = [];
+
+    /// <summary>Умные плейлисты пользователя: условия, по которым набираются треки.</summary>
+    public List<SmartPlaylistDef> SmartPlaylists { get; set; } = [];
+
+    /// <summary>Плейлисты, связанные с файлом .m3u8 в общей папке: id плейлиста → путь к файлу.</summary>
+    public Dictionary<string, string> LinkedPlaylists { get; set; } = [];
+
+    /// <summary>Вид окна: modern или classic. null — первый запуск, вид ещё не выбран.</summary>
+    public string? ViewMode { get; set; }
+
+    /// <summary>Классический вид: что показывает дерево слева, открытые вкладки и текущая.</summary>
+    public string ClassicTreeMode { get; set; } = "Artists";
+    public List<string> ClassicTabs { get; set; } = [];
+    public string? ClassicActiveTab { get; set; }
+
+    /// <summary>Плавное затухание при паузе и нарастание при снятии с паузы, мс. 0 — сразу.</summary>
+    public int PauseFadeMs { get; set; }
+
+    /// <summary>Пауза, когда пропало устройство вывода: выдернули наушники, отключился Bluetooth.</summary>
+    public bool PauseOnDisconnect { get; set; } = true;
+
+    /// <summary>Ручной режим: трек доигрывает, следующий встаёт на паузу и ждёт нажатия.</summary>
+    public bool ManualAdvance { get; set; }
+
+    /// <summary>Время изменения связанного файла после последней синхронизации, UTC ticks. Другое время — файл поменяли не мы.</summary>
+    public Dictionary<string, long> LinkedStamps { get; set; } = [];
+
     // Окно
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
@@ -163,6 +236,8 @@ public sealed class Settings
             {
                 s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(file)) ?? new();
                 s.Language ??= "ru";
+                // Кто обновился со старой версии, вид уже видел: экран выбора ему не показываем.
+                s.ViewMode ??= "modern";
             }
             else
             {

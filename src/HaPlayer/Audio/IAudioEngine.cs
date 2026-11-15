@@ -13,6 +13,15 @@ public interface IAudioEngine : IDisposable
     void Pause();
     void Stop();
 
+    /// <summary>Останавливает и закрывает файлы, чтобы их можно было удалить.</summary>
+    void Close();
+
+    /// <summary>Пропало устройство, на котором шёл звук (наушники, Bluetooth). Приходит не из потока интерфейса.</summary>
+    event EventHandler? DeviceLost;
+
+    /// <summary>Открывает вывод заново на доступном устройстве. play — продолжать ли звук.</summary>
+    void ReopenOutput(bool play);
+
     bool IsPlaying { get; }
     TimeSpan Position { get; set; }
     TimeSpan Duration { get; }

@@ -35,6 +35,20 @@
       <Setter Property="RenderTransform" Value="none" />
     </Style>
 
+    <!-- Карточки выбора вида при первом запуске -->
+    <Style Selector="Button.viewcard">
+      <Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="CornerRadius" Value="{DynamicResource R12}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.viewcard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
     <Style Selector="v|EqualizerView.pop">
       <Setter Property="Opacity" Value="0" />
       <Setter Property="IsHitTestVisible" Value="False" />
@@ -63,9 +77,13 @@
     <DataTemplate DataType="vm:YearsPageViewModel"><v:YearsView /></DataTemplate>
   </Window.DataTemplates>
 
+  <Panel>
+  <!-- Своя картинка на фоне окна и затемнение поверх неё -->
+  <Image x:Name="BgImage" Stretch="UniformToFill" IsVisible="False" IsHitTestVisible="False" />
+  <Border x:Name="BgDim" Background="Black" IsVisible="False" IsHitTestVisible="False" />
   <LayoutTransformControl x:Name="Scaler">
   <Panel>
-    <Grid x:Name="Root" RowDefinitions="64,*,80" ColumnDefinitions="370,*,Auto" Margin="8,0">
+    <Grid x:Name="Root" RowDefinitions="64,*,80" ColumnDefinitions="370,*,Auto" Margin="8,0" IsVisible="{Binding IsModern}">
 
       <!-- Верхняя панель, как в Spotify. Пустые места не ловят мышь: за них окно перетаскивается. -->
       <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,Auto,*">
@@ -163,8 +181,13 @@
       <v:NowPlayingView Grid.Row="1" Grid.RowSpan="2" Grid.ColumnSpan="3" Margin="-8,0,-8,0"
                         Classes="sheet" Classes.open="{Binding IsNowPlayingOpen}" />
 
+    </Grid>
+
+    <!-- Классический вид: та же медиатека, раскладка как у настольных плееров -->
+    <v:ClassicView x:Name="Classic" IsVisible="{Binding IsClassic}" />
+
       <!-- Палитра команд (Ctrl+K) -->
-      <Panel Grid.RowSpan="3" Grid.ColumnSpan="3" IsVisible="{Binding Palette.IsOpen}" Margin="-8,0">
+      <Panel IsVisible="{Binding Palette.IsOpen}">
         <Border Background="#80000000" PointerPressed="OnPaletteBackdrop" />
         <Border Classes="palette" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,90,0,0" Width="600">
           <DockPanel>
@@ -192,9 +215,8 @@
       </Panel>
 
       <!-- Эквалайзер: карточка над нижней панелью справа -->
-      <v:EqualizerView Grid.Row="1" Grid.ColumnSpan="3" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                       Margin="0,0,8,8" Classes="pop" Classes.open="{Binding IsEqualizerOpen}" />
-    </Grid>
+      <v:EqualizerView HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                       Margin="0,0,16,96" Classes="pop" Classes.open="{Binding IsEqualizerOpen}" />
 
     <!-- Подсказка при перетаскивании файлов -->
     <Border x:Name="DropOverlay" IsVisible="False" Background="#B3000000" IsHitTestVisible="False">
@@ -210,6 +232,102 @@
             BoxShadow="0 8 24 0 #80000000">
       <TextBlock Text="{Binding BusyText}" Foreground="{DynamicResource InverseTextBrush}" FontWeight="SemiBold" />
     </Border>
+
+    <!-- Первый запуск: выбор вида -->
+    <Border IsVisible="{Binding IsViewChooserOpen}" Background="{DynamicResource BgBrush}">
+      <ScrollViewer>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="28" Margin="24,64,24,24">
+        <StackPanel Spacing="8" HorizontalAlignment="Center">
+          <TextBlock Text="{ui:T 'Как будет выглядеть HaPlayer?'}" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center"
+                     TextWrapping="Wrap" TextAlignment="Center" />
+          <TextBlock Text="{ui:T 'Поменять можно в любой момент: «Настройки → Оформление → Вид».'}" Foreground="{DynamicResource SubBrush}"
+                     HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+        </StackPanel>
+        <WrapPanel HorizontalAlignment="Center">
+          <Button Classes="viewcard" Command="{Binding ChooseViewCommand}" CommandParameter="modern" Margin="10">
+            <StackPanel Spacing="14" Width="340">
+              <!-- Схема современного вида: медиатека слева, крупные карточки, панель снизу -->
+              <Border Height="200" CornerRadius="{DynamicResource R8}" Background="{DynamicResource BgBrush}" Padding="8">
+                <Grid ColumnDefinitions="70,*" RowDefinitions="*,28">
+                  <Border Background="{DynamicResource PanelBrush}" CornerRadius="{DynamicResource R6}" Margin="0,0,6,6">
+                    <StackPanel Margin="6" Spacing="6">
+                      <Border Height="16" CornerRadius="3" Background="{DynamicResource AccentBrush}" Opacity="0.85" />
+                      <Border Height="16" CornerRadius="3" Background="{DynamicResource RaisedBrush}" />
+                      <Border Height="16" CornerRadius="3" Background="{DynamicResource RaisedBrush}" />
+                      <Border Height="16" CornerRadius="3" Background="{DynamicResource RaisedBrush}" />
+                    </StackPanel>
+                  </Border>
+                  <Border Grid.Column="1" Background="{DynamicResource PanelBrush}" CornerRadius="{DynamicResource R6}" Margin="0,0,0,6">
+                    <UniformGrid Columns="3" Margin="8">
+                      <Border Margin="4" CornerRadius="4" Background="{DynamicResource AccentBrush}" Opacity="0.7" />
+                      <Border Margin="4" CornerRadius="4" Background="{DynamicResource RaisedBrush}" />
+                      <Border Margin="4" CornerRadius="4" Background="{DynamicResource RaisedBrush}" />
+                      <Border Margin="4" CornerRadius="4" Background="{DynamicResource RaisedBrush}" />
+                      <Border Margin="4" CornerRadius="4" Background="{DynamicResource AccentBrush}" Opacity="0.4" />
+                      <Border Margin="4" CornerRadius="4" Background="{DynamicResource RaisedBrush}" />
+                    </UniformGrid>
+                  </Border>
+                  <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{DynamicResource PanelBrush}" CornerRadius="{DynamicResource R6}">
+                    <Ellipse Width="14" Height="14" Fill="{DynamicResource TextBrush}" />
+                  </Border>
+                </Grid>
+              </Border>
+              <StackPanel Spacing="4">
+                <TextBlock Text="{ui:T 'Современный'}" FontSize="18" FontWeight="Bold" />
+                <TextBlock Text="{ui:T 'Крупные обложки, главная с подборками, просторные страницы альбомов и исполнителей.'}"
+                           Foreground="{DynamicResource SubBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+          <Button Classes="viewcard" Command="{Binding ChooseViewCommand}" CommandParameter="classic" Margin="10">
+            <StackPanel Spacing="14" Width="340">
+              <!-- Схема классического вида: панель со временем сверху, дерево слева, таблица -->
+              <Border Height="200" CornerRadius="{DynamicResource R8}" Background="{DynamicResource BgBrush}" Padding="8">
+                <Grid ColumnDefinitions="80,*" RowDefinitions="44,*">
+                  <Border Grid.ColumnSpan="2" Background="{DynamicResource PanelBrush}" CornerRadius="{DynamicResource R6}" Margin="0,0,0,6">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="6">
+                      <Border Width="26" Height="26" CornerRadius="3" Background="{DynamicResource AccentBrush}" Opacity="0.8" />
+                      <StackPanel Grid.Column="1" Margin="8,2" Spacing="5">
+                        <Border Height="7" Width="90" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource TextBrush}" Opacity="0.8" />
+                        <Border Height="5" Width="60" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Text="1:24" FontSize="17" FontWeight="Bold" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                  <Border Grid.Row="1" Background="{DynamicResource PanelBrush}" CornerRadius="{DynamicResource R6}" Margin="0,0,6,0">
+                    <StackPanel Margin="6" Spacing="5">
+                      <Border Height="6" Width="50" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      <Border Height="6" Width="40" Margin="8,0,0,0" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource MutedBrush}" />
+                      <Border Height="6" Width="44" Margin="8,0,0,0" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource MutedBrush}" />
+                      <Border Height="6" Width="56" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      <Border Height="6" Width="46" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                    </StackPanel>
+                  </Border>
+                  <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource PanelBrush}" CornerRadius="{DynamicResource R6}">
+                    <StackPanel Margin="8" Spacing="6">
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource MutedBrush}" />
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource AccentBrush}" Opacity="0.8" />
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                      <Border Height="5" CornerRadius="2" Background="{DynamicResource SubBrush}" />
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </Border>
+              <StackPanel Spacing="4">
+                <TextBlock Text="{ui:T 'Классический'}" FontSize="18" FontWeight="Bold" />
+                <TextBlock Text="{ui:T 'Плотная таблица треков, дерево медиатеки и панель со временем, как в настольных плеерах.'}"
+                           Foreground="{DynamicResource SubBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+        </WrapPanel>
+      </StackPanel>
+      </ScrollViewer>
+    </Border>
   </Panel>
   </LayoutTransformControl>
+  </Panel>
 </Window>

@@ -24,6 +24,10 @@ public sealed class NAudioEngine : IAudioEngine
     private IWavePlayer? _output;
     private bool _outputDirty;
     private bool _manualStop;
+    private readonly DeviceWatcher _watcher = new();
+
+    /// <summary>Устройство, на котором сейчас идёт звук. Нужно, чтобы понять, что пропало именно оно.</summary>
+    private volatile string? _activeDeviceId;
 
     public NAudioEngine()
     {
@@ -33,6 +37,59 @@ public sealed class NAudioEngine : IAudioEngine
         _equalizer = new Equalizer(_deck, EqualizerSettings.Off);
         _tap = new SpectrumTap(_equalizer);
         _volumeProvider = new VolumeSampleProvider(_tap) { Volume = 1f };
+        _watcher.DeviceGone += id =>
+        {
+            if (id == _activeDeviceId) DeviceLost?.Invoke(this, EventArgs.Empty);
+        };
+        // Сменилось устройство по умолчанию: если играем «по умолчанию», следующий трек пойдёт уже на новое.
+        _watcher.DefaultChanged += () =>
+        {
+            if (DeviceId == null) _outputDirty = true;
+        };
+    }
+
+    public event EventHandler? DeviceLost;
+
+    private static string? DefaultDeviceId()
+    {
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            return enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia).ID;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool IsDeviceActive(string? id)
+    {
+        if (id == null) return true;
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            return enumerator.GetDevice(id).State == DeviceState.Active;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Устройство пропало: старый вывод закрывается, новый открывается на том, что есть. play — продолжать ли звук.</summary>
+    public void ReopenOutput(bool play)
+    {
+        _deck.Paused = !play;
+        try
+        {
+            RecreateOutput(play);
+        }
+        catch
+        {
+            _output = null;
+            _outputDirty = true;
+        }
     }
 
     public event EventHandler? TrackEnded;
@@ -144,8 +201,15 @@ public sealed class NAudioEngine : IAudioEngine
         if (_output != null)
         {
             _output.PlaybackStopped -= OnPlaybackStopped;
-            _output.Stop();
-            _output.Dispose();
+            try
+            {
+                _output.Stop();
+                _output.Dispose();
+            }
+            catch
+            {
+                // устройства уже нет: закрывать нечего
+            }
             _output = null;
         }
         _outputDirty = false;
@@ -190,6 +254,7 @@ public sealed class NAudioEngine : IAudioEngine
                     : new WasapiOut(AudioClientShareMode.Shared, true, latency);
                 wasapi.Init(source);
                 wasapi.PlaybackStopped += OnPlaybackStopped;
+                _activeDeviceId = device?.ID ?? DefaultDeviceId();
                 return wasapi;
             }
             catch
@@ -201,6 +266,7 @@ public sealed class NAudioEngine : IAudioEngine
         var waveOut = new WaveOutEvent { DesiredLatency = Math.Max(latency, 60) };
         waveOut.Init(source);
         waveOut.PlaybackStopped += OnPlaybackStopped;
+        _activeDeviceId = DefaultDeviceId();
         return waveOut;
     }
 
@@ -213,7 +279,10 @@ public sealed class NAudioEngine : IAudioEngine
             return;
         }
         // Вывод работает непрерывно, сам он останавливается только из-за ошибки (например, отключили наушники).
-        if (e.Exception != null) PlaybackFailed?.Invoke(this, e.Exception);
+        if (e.Exception == null) return;
+        // Ошибка из-за пропавшего устройства — это не битый файл: следующий трек включать не надо.
+        if (!IsDeviceActive(_activeDeviceId)) DeviceLost?.Invoke(this, EventArgs.Empty);
+        else PlaybackFailed?.Invoke(this, e.Exception);
     }
 
     public void Play()
@@ -234,6 +303,12 @@ public sealed class NAudioEngine : IAudioEngine
     {
         Pause();
         _deck.Rewind();
+    }
+
+    public void Close()
+    {
+        Pause();
+        _deck.Clear();
     }
 
     public bool IsPlaying => _output?.PlaybackState == PlaybackState.Playing && !_deck.Paused && _deck.HasCurrent;
@@ -419,6 +494,20 @@ internal sealed class Deck(WaveFormat format) : ISampleProvider, IDisposable
             }
             _next?.Dispose();
             _next = source;
+        }
+    }
+
+    /// <summary>Закрывает оба файла: текущий и заранее открытый следующий.</summary>
+    public void Clear()
+    {
+        lock (_lock)
+        {
+            _current?.Dispose();
+            _next?.Dispose();
+            _current = null;
+            _next = null;
+            _mixing = false;
+            _endReported = false;
         }
     }
 

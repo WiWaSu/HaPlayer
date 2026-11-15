@@ -14,6 +14,7 @@ public static class Icons
     public static readonly Geometry Next = Parse("M5.5 5.6v12.8a.6.6 0 0 0 .95.5l9-6.4a.6.6 0 0 0 0-1L6.45 5.1a.6.6 0 0 0-.95.5z M17.5 5h1.5v14h-1.5z");
     public static readonly Geometry Prev = Parse("M18.5 5.6v12.8a.6.6 0 0 1-.95.5l-9-6.4a.6.6 0 0 1 0-1l9-6.4a.6.6 0 0 1 .95.5z M5 5h1.5v14H5z");
     public static readonly Geometry Heart = Parse("M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z");
+    public static readonly Geometry Stop = Parse("M6.5 6.5h11v11h-11z");
     public static readonly Geometry Dot = Parse("M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z");
     public static readonly Geometry CircleFill = Parse("M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z");
 
@@ -77,7 +78,7 @@ public static class Icons
     public static readonly Geometry Stats = Parse("M3 3v18h18 M7 16v-4 M12 16V8 M17 16v-7");
     public static readonly Geometry Moon = Parse("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z");
 
-    private static readonly HashSet<Geometry> SolidSet = [Play, Pause, Next, Prev, Heart, Dot, CircleFill];
+    private static readonly HashSet<Geometry> SolidSet = [Play, Pause, Stop, Next, Prev, Heart, Dot, CircleFill];
 
     /// <summary>Залитый значок или линейный.</summary>
     public static bool IsSolid(Geometry g) => SolidSet.Contains(g);

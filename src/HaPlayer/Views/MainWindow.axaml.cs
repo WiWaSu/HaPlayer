@@ -47,9 +47,13 @@ public partial class MainWindow : Window, IDialogService
         Vm.Dialogs = this;
         Vm.Notify = ShowNotification;
         Vm.ScaleChanged = ApplyScale;
+        Vm.BackgroundChanged = ApplyBackground;
+        ApplyBackground(Vm.HasBackgroundImage ? Vm.Settings.BackgroundImage : null, Vm.Settings.BackgroundDim);
         Vm.DensityChanged = ApplyDensity;
         ApplyDensity(Vm.Settings.Dense);
         ApplyScale(Vm.Settings.UiScale);
+        Vm.ViewModeChanged += ApplyTitleBar;
+        ApplyTitleBar();
         Vm.FocusSearchRequested = () =>
         {
             TopSearch.Focus();
@@ -114,7 +118,8 @@ public partial class MainWindow : Window, IDialogService
         }
 
         // В поле ввода буквы и пробел печатают текст и плеером не управляют.
-        if (e.KeyModifiers != KeyModifiers.None || e.Source is TextBox) return;
+        // В открытом выпадающем списке стрелки и Enter выбирают пункт, а не громкость и перемотку.
+        if (e.KeyModifiers != KeyModifiers.None || e.Source is TextBox or ComboBox or ComboBoxItem) return;
         // Медиаклавиши при включённых глобальных клавишах ловит система: здесь пропускаем, иначе сработало бы дважды.
         if (vm.GlobalHotkeysActive && e.Key is Key.MediaPlayPause or Key.MediaNextTrack or Key.MediaPreviousTrack or Key.MediaStop) return;
         var p = vm.Player;
@@ -190,6 +195,10 @@ public partial class MainWindow : Window, IDialogService
 
     // ---------- Масштаб ----------
 
+    /// <summary>Высота полосы, за которую тянется окно: у современного вида верхняя панель, у классического узкий заголовок.</summary>
+    private void ApplyTitleBar() =>
+        ExtendClientAreaTitleBarHeightHint = (Vm?.IsClassic == true ? 40 : Root.RowDefinitions[0].Height.Value) * _scale;
+
     private double _scale = 1;
 
     /// <summary>Увеличивает или уменьшает весь интерфейс окна. Ступени ширины считаются уже в новом масштабе.</summary>
@@ -197,8 +206,28 @@ public partial class MainWindow : Window, IDialogService
     {
         _scale = Math.Clamp(scale, 0.75, 1.5);
         Scaler.LayoutTransform = Math.Abs(_scale - 1) < 0.01 ? null : new Avalonia.Media.ScaleTransform(_scale, _scale);
-        ExtendClientAreaTitleBarHeightHint = Root.RowDefinitions[0].Height.Value * _scale;
+        ApplyTitleBar();
         ApplyLayout(ClientSize.Width / _scale);
+    }
+
+    // ---------- Картинка на фоне ----------
+
+    public void ApplyBackground(string? file, double dim)
+    {
+        Avalonia.Media.Imaging.Bitmap? bitmap = null;
+        try
+        {
+            if (file != null) bitmap = new Avalonia.Media.Imaging.Bitmap(file);
+        }
+        catch
+        {
+            bitmap = null;
+        }
+        (BgImage.Source as IDisposable)?.Dispose();
+        BgImage.Source = bitmap;
+        BgImage.IsVisible = bitmap != null;
+        BgDim.IsVisible = bitmap != null;
+        BgDim.Opacity = Math.Clamp(dim, 0, 0.9);
     }
 
     // ---------- Плотность ----------
@@ -209,7 +238,7 @@ public partial class MainWindow : Window, IDialogService
         Classes.Set("dense", dense);
         Root.RowDefinitions[0].Height = new GridLength(dense ? 52 : 64);
         Root.RowDefinitions[2].Height = new GridLength(dense ? 68 : 80);
-        ExtendClientAreaTitleBarHeightHint = Root.RowDefinitions[0].Height.Value * _scale;
+        ApplyTitleBar();
     }
 
     // ---------- Ширина окна ----------
@@ -336,6 +365,9 @@ public partial class MainWindow : Window, IDialogService
         Dialogs.ConfirmAsync(this, title, message, okText);
 
     public Task MessageAsync(string title, string message) => Dialogs.MessageAsync(this, title, message);
+
+    public Task<HaPlayer.Library.SmartPlaylistDef?> EditSmartAsync(HaPlayer.Library.SmartPlaylistDef def,
+        Func<HaPlayer.Library.SmartPlaylistDef, int> count) => SmartEditor.ShowAsync(this, def, count);
 
     public async Task<string?> PickFolderAsync()
     {

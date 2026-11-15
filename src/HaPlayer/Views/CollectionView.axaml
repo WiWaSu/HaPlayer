@@ -7,7 +7,20 @@
   <!-- Одна страница для альбома, исполнителя и плейлиста -->
   <ScrollViewer>
     <StackPanel>
-      <Border Classes="pagehead" Background="{Binding HeaderBrush}">
+      <Panel>
+      <!-- Шапка: цвет обложки, анимированная абстракция или своя картинка («…» → «Шапка») -->
+      <Border Background="{Binding HeaderBrush}" />
+      <ui:AbstractBanner BaseColor="{Binding BannerColor}" IsVisible="{Binding IsAbstractBanner}" />
+      <Image Source="{Binding BannerImage}" Stretch="UniformToFill" IsVisible="{Binding IsImageBanner}" ClipToBounds="True" />
+      <Border IsVisible="{Binding IsImageBanner}">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="#33000000" Offset="0" />
+            <GradientStop Color="#B3000000" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+      <Border Classes="pagehead">
         <Grid ColumnDefinitions="Auto,*">
           <ui:CoverView Classes="herocover" Source="{Binding Item.Art}" CornerRadius="{Binding CoverRadius}"
                         IsLiked="{Binding Item.IsLikedCollection}"
@@ -24,13 +37,14 @@
           </StackPanel>
         </Grid>
       </Border>
+      </Panel>
 
       <Border Background="{Binding ContentBrush}" Padding="24,20,24,24" MinHeight="400">
         <StackPanel>
           <!-- Как у Spotify: большая «играть», «перемешать» и «…» с остальными действиями -->
           <StackPanel Orientation="Horizontal" Spacing="20" Margin="0,0,0,24">
             <Button Classes="primary" Command="{Binding PlayCommand}" IsEnabled="{Binding HasTracks}" ToolTip.Tip="{ui:T 'Играть'}">
-              <ui:Glyph Data="{x:Static ui:Icons.Play}" Width="28" Height="28" />
+              <ui:Glyph Data="{Binding PlayIcon}" Width="28" Height="28" />
             </Button>
             <Button Classes="icon large" Command="{Binding ShufflePlayCommand}" IsEnabled="{Binding HasTracks}"
                     VerticalAlignment="Center" ToolTip.Tip="{ui:T 'Играть в случайном порядке'}">
@@ -122,7 +136,7 @@
                 <Binding Path="ShowAppearsOn" />
               </MultiBinding>
             </StackPanel.IsVisible>
-            <ItemsControl ItemsSource="{Binding TabAlbums}" Margin="-12,0,0,0">
+            <ItemsControl x:Name="AlbumCards" ItemsSource="{Binding TabAlbums}" Margin="-12,0,0,0">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>

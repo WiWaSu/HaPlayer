@@ -391,6 +391,28 @@ public sealed class LibraryDb : IDisposable
         }
     }
 
+    /// <summary>
+    /// Убирает записи о треках, файлы которых удалены в корзину. В скрытые их не заносим:
+    /// если файл вернут из корзины, проверка папок найдёт его снова, а лайки и оценки останутся при нём.
+    /// </summary>
+    public void DeleteTracks(IReadOnlyCollection<string> paths)
+    {
+        lock (_lock)
+        {
+            using var tx = _conn.BeginTransaction();
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "DELETE FROM tracks WHERE path = $p";
+            var p = cmd.Parameters.Add("$p", SqliteType.Text);
+            foreach (var path in paths)
+            {
+                p.Value = path;
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+
     public void Unhide(IReadOnlyCollection<string> paths)
     {
         lock (_lock)
@@ -457,6 +479,47 @@ public sealed class LibraryDb : IDisposable
                 pb.Value = t.Bitrate; ps.Value = t.SampleRate; pc.Value = t.Channels; pp.Value = t.Path; pg.Value = t.Genre;
                 cmd.ExecuteNonQuery();
             }
+            tx.Commit();
+        }
+    }
+
+    // ---------- Перемещённые файлы ----------
+
+    /// <summary>
+    /// Файл переехал: лайк, места в плейлистах, история, оценка, заметка и привязки переходят на новый путь,
+    /// старая запись трека удаляется. Если у нового пути уже есть своё (лайк, оценка, заметка), оно остаётся.
+    /// </summary>
+    public void RelinkPath(string oldPath, string newPath)
+    {
+        lock (_lock)
+        {
+            using var tx = _conn.BeginTransaction();
+            void Run(string sql)
+            {
+                using var cmd = _conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = sql;
+                cmd.Parameters.AddWithValue("$old", oldPath);
+                cmd.Parameters.AddWithValue("$new", newPath);
+                cmd.ExecuteNonQuery();
+            }
+            Run("DELETE FROM likes WHERE path = $old AND EXISTS (SELECT 1 FROM likes WHERE path = $new)");
+            Run("UPDATE likes SET path = $new WHERE path = $old");
+            Run("UPDATE playlist_tracks SET path = $new WHERE path = $old");
+            Run("UPDATE history SET path = $new WHERE path = $old");
+            Run("DELETE FROM ratings WHERE path = $old AND EXISTS (SELECT 1 FROM ratings WHERE path = $new)");
+            Run("UPDATE ratings SET path = $new WHERE path = $old");
+            Run("DELETE FROM notes WHERE kind = 'track' AND key = $old AND EXISTS (SELECT 1 FROM notes WHERE kind = 'track' AND key = $new)");
+            Run("UPDATE notes SET key = $new WHERE kind = 'track' AND key = $old");
+            // Привязки к альбому и исполнителю и дата добавления переходят, если у нового файла их нет.
+            Run("""
+                UPDATE tracks SET
+                    user_album_key = COALESCE(user_album_key, (SELECT user_album_key FROM tracks WHERE path = $old)),
+                    user_artist = COALESCE(user_artist, (SELECT user_artist FROM tracks WHERE path = $old)),
+                    added = MIN(added, COALESCE((SELECT added FROM tracks WHERE path = $old), added))
+                WHERE path = $new
+                """);
+            Run("DELETE FROM tracks WHERE path = $old");
             tx.Commit();
         }
     }
