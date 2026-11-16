@@ -55,6 +55,12 @@ Write-Host "Собираю HaPlayer $version…"
     -o $out --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Сборка не удалась' }
 
+# Лицензия и сведения о чужих библиотеках едут вместе с программой: в архиве и в папке релиза.
+foreach ($doc in 'LICENSE', 'THIRD-PARTY-NOTICES.md') {
+    $docPath = Join-Path $root $doc
+    if (Test-Path $docPath) { Copy-Item $docPath $out -Force }
+}
+
 $zip = Join-Path $root "publish\HaPlayer-$version-win-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $out '*') -DestinationPath $zip
@@ -75,6 +81,10 @@ $exe = Join-Path $out 'HaPlayer.exe'
 New-Item -ItemType Directory -Force $releaseDir | Out-Null
 Copy-Item $exe (Join-Path $releaseDir 'HaPlayer.exe') -Force
 Copy-Item $zip (Join-Path $releaseDir "$releaseName portable win-x64.zip") -Force
+foreach ($doc in 'LICENSE', 'THIRD-PARTY-NOTICES.md') {
+    $docPath = Join-Path $root $doc
+    if (Test-Path $docPath) { Copy-Item $docPath $releaseDir -Force }
+}
 
 # Чистый код этой версии для выкладки: ..\source code\HaPlayer - <версия>\ и zip рядом.
 $sourceScript = Join-Path (Split-Path -Parent $root) 'source-code.ps1'
